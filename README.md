@@ -21,6 +21,7 @@ Previsão de readmissão hospitalar em 30 dias com dados públicos do SIH/SUS (P
 readmissao-sus/
 ├── data/              # dados baixados e processados (fora do git)
 ├── docs/              # planejamento do projeto
+├── fhir/pacotes/      # pacotes FHIR (.tgz) usados na validação
 ├── src/readmissao_sus/  # código do pacote
 ├── tests/             # testes com pytest
 ├── pytest.ini
@@ -56,3 +57,11 @@ Para medir a viabilidade do linkage (chave NASC + SEXO + CEP + MUNIC_RES, guarda
 ```
 
 O documento recebe só agregados; nenhuma chave ou registro por internação é gravado.
+
+Para baixar os pacotes FHIR do Sumário de Alta para `fhir/pacotes/` (versão e SHA-256 fixos; rodar de novo não baixa nada):
+
+```powershell
+.venv\Scripts\python scripts\baixar_pacotes_fhir.py
+```
+
+Não há perfil FHIR nacional do Sumário de Alta publicado. O projeto usa o perfil `sumario-alta` do guia CORE da SES-GO (versão 1.2.6, **rascunho**, ambiente de homologação) com os artefatos da RNDS do pacote `br.go.ses.reds-go`. Os motivos e as URLs canônicas estão na decisão D02 de `docs/decisoes.md`.

@@ -21,3 +21,9 @@ artifacts/
 build/
 dist/
 *.egg-info/
+
+# Pacotes FHIR (scripts/baixar_pacotes_fhir.py). Só o da SES-GO vai para o git:
+# a URL de homologação não tem versão e pode mudar (ver D02 em docs/decisoes.md).
+fhir/pacotes/*.tgz
+!fhir/pacotes/br.go.ses.core-1.2.6.tgz
+fhir/pacotes/*.part

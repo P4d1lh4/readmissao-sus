@@ -152,3 +152,70 @@ Seguir com o linkage enquanto **as chaves colidentes forem no máximo 5% das cha
 Justificativa: as colisões ficam abaixo do teto; o placeholder dominante (CEP genérico) aumenta as colisões, mas não infla a taxa; e a taxa sem contíguas (11,82%) bate com a literatura brasileira (11,6% no SIH/SUS do Rio com CNS; 13,7% em Porto Alegre). O plano B seria a escolha se o usuário preferir um alvo sem erro de linkage, ao custo de abandonar a pergunta central do projeto.
 
 **Decisão do usuário:** _pendente._
+
+## D02 — Perfil FHIR do Sumário de Alta (S04)
+
+**Estado: decidida na S04, seguindo a orientação da história. Revisar quando o Ministério da Saúde publicar um perfil nacional.**
+
+### Pergunta
+
+Qual perfil FHIR usar para gerar e validar o Sumário de Alta "no padrão da RNDS", e quais pacotes o validador HL7 precisa carregar com `-ig`?
+
+### O que foi pesquisado (23/11/2026)
+
+- **Base normativa.** O Modelo de Informação de Sumário de Alta (SA) foi instituído pela Portaria SAES/MS nº 701, de 29/09/2022. Essa portaria foi **revogada** pela Portaria GM/MS nº 8.026, de 27/08/2025, que institui o SA no âmbito da RNDS ([Conass Informa nº 151/2025](https://www.conass.org.br/?p=50759)). O art. 3º diz que as especificações técnicas serão publicadas no Portal de Serviços do DATASUS. A portaria não traz perfil FHIR nem URL.
+- **Portal de Serviços do DATASUS** (<https://servicos-datasus.saude.gov.br>). A página é uma aplicação JavaScript; o conteúdo não pôde ser lido sem login nem navegação. Não foi encontrado, por busca, nenhum guia ou perfil do SA publicado ali.
+- **gov.br/RNDS.** A página de [atualizações técnicas](https://www.gov.br/saude/pt-br/composicao/seidigi/rnds/atualizacoes-tecnicas) não menciona o SA. Ela aponta para o Simplifier e para o guia de integração (<https://rnds-guia.prod.saude.gov.br/>).
+- **Simplifier da RNDS** (<https://simplifier.net/redenacionaldedadosemsaude>). O projeto avisa que "não é o repositório oficial da RNDS" e que parte dos artefatos está em homologação (draft). Não há perfil de Sumário de Alta. Há o `br-core-composition`, mas:
+  - não existe pacote NPM do projeto (nem no registro do Simplifier, nem em packages.fhir.org; a busca pela URL canônica não retorna nada);
+  - o perfil não tem `version` e não restringe nada além de trocar referências para perfis `br-core-*`;
+  - os `binding.valueSet` apontam para páginas HTML (por exemplo `http://hl7.org/fhir/R4/valueset-doc-typecodes.html`), não para URLs canônicas de ValueSet, e o validador não consegue resolvê-los (não testado no validador nesta história).
+- **Guia CORE da SES-GO.** Tem o perfil `sumario-alta`, modelado sobre o SA da portaria, com seções obrigatórias (contato assistencial, diagnósticos, procedimentos) e perfis próprios para cada entrada. Ele usa os ValueSets da RNDS (`BRCID10-1.0`, `BRMotivoDesfecho-1.0`, `BRCaraterAtendimento-1.0`, `BRModalidadeAssistencial-1.0`, `BRProcedencia-1.0` etc.). O perfil só existe na versão 1.2.6, publicada no ambiente de **homologação** (<https://fhir-homolog.saude.go.gov.br/r4/core/>). A versão de produção (<https://fhir.saude.go.gov.br/r4/core/>) e a mais recente no registro do Simplifier são a 1.1.0, que não tem o perfil.
+- **IPS Brasil** (<https://ips-brasil.web.app/>). É o Sumário Internacional do Paciente, outro documento (resumo geral do paciente, não da internação). Não foi usado.
+
+Conclusão: **não há perfil FHIR nacional do Sumário de Alta publicado.**
+
+### Decisão
+
+O Sumário de Alta é gerado e validado contra o perfil `sumario-alta` da SES-GO, em rascunho, com os artefatos da RNDS do pacote `br.go.ses.reds-go`. O `br-core-composition` da RNDS fica como referência, sem uso na validação.
+
+| Perfil | URL canônica | Versão | Status | Pacote |
+| --- | --- | --- | --- | --- |
+| Sumário de Alta (Composition) | `https://fhir.saude.go.gov.br/r4/core/StructureDefinition/sumario-alta` | 1.2.6 (2026-03-07) | draft | `br.go.ses.core#1.2.6` |
+| Contato Assistencial (Encounter) | `https://fhir.saude.go.gov.br/r4/core/StructureDefinition/contato-assistencial-sumario-alta` | 1.2.6 | draft | `br.go.ses.core#1.2.6` |
+| Diagnóstico (Condition) | `https://fhir.saude.go.gov.br/r4/core/StructureDefinition/diagnostico-sumario-alta` | 1.2.6 | draft | `br.go.ses.core#1.2.6` |
+| Procedimento (Procedure) | `https://fhir.saude.go.gov.br/r4/core/StructureDefinition/procedimento-sumario-alta` | 1.2.6 | draft | `br.go.ses.core#1.2.6` |
+| Encaminhamento (ServiceRequest) | `https://fhir.saude.go.gov.br/r4/core/StructureDefinition/encaminhamento-sumario-alta` | 1.2.6 | draft | `br.go.ses.core#1.2.6` |
+| Cidadão identificado (Patient) | `https://fhir.saude.go.gov.br/r4/core/StructureDefinition/individuo` | 1.2.6 | active | `br.go.ses.core#1.2.6` |
+| Estabelecimento de Saúde (Organization) | `https://fhir.saude.go.gov.br/r4/core/StructureDefinition/estabelecimento-saude` | 1.2.6 | draft | `br.go.ses.core#1.2.6` |
+| Profissional (Practitioner) | `https://fhir.saude.go.gov.br/r4/core/StructureDefinition/profissional` | 1.2.6 | active | `br.go.ses.core#1.2.6` |
+| Artefatos da RNDS (ValueSets, CodeSystems, `BRIndividuo-1.0`, `BREstabelecimentoSaude-1.0` etc.) | `http://www.saude.gov.br/fhir/r4/...` | 1.0.3 (2026-02-12) | active, alguns draft | `br.go.ses.reds-go#1.0.3` |
+| BR Core Composition (referência, fora da validação) | `https://br-core.saude.gov.br/fhir/StructureDefinition/br-core-composition` | sem versão | active | sem pacote |
+
+O guia tem também perfis para alergia, restrição funcional, prescrição e plano de cuidados (todos draft, 1.2.6). As seções deles são opcionais no `sumario-alta` e o SIH não traz esses dados.
+
+### Por que essa escolha
+
+1. É o único perfil de Sumário de Alta encontrado, publicado por um órgão público (SES-GO), que segue o modelo de informação do SA e usa a terminologia da RNDS.
+2. Vem num pacote NPM com versão e dependências declaradas, que o validador HL7 carrega com `-ig`. O `br-core-composition` não tem pacote nem versão, e seus bindings para páginas HTML gerariam mensagens causadas pelo perfil, não pelo documento.
+3. O `sumario-alta` deriva direto do `Composition` do FHIR R4, não do `br-core-composition`. Validar contra os dois exigiria também os perfis `br-core-*` referenciados, sem pacote publicado.
+
+Limites, que o README e o documento gerado precisam deixar claros:
+
+- é um guia **estadual**, em **rascunho** e em **homologação**; não é o perfil oficial da RNDS;
+- o `br.go.ses.reds-go` é a SES-GO reempacotando os artefatos da RNDS "para compatibilidade técnica com FHIR R4 sem alteração semântica" (descrição do pacote); não é publicação do DATASUS.
+
+### Pacotes e como reproduzir
+
+```powershell
+.venv\Scripts\python scripts\baixar_pacotes_fhir.py
+```
+
+| Arquivo em `fhir/pacotes/` | Origem | SHA-256 | No git? |
+| --- | --- | --- | --- |
+| `br.go.ses.core-1.2.6.tgz` (480 KB) | <https://fhir-homolog.saude.go.gov.br/r4/core/package.tgz> | `c6ddb2970eb854d87e3a79999f45649814dcee83e767dc00a57d4ebbf345ba68` | sim |
+| `br.go.ses.reds-go-1.0.3.tgz` (4,2 MB) | <https://packages.simplifier.net/br.go.ses.reds-go/1.0.3> | `be49b292d14b18801b4b744f1db44a86cc1031c1d84eda21a802bdb686dbfd87` | não |
+
+O script baixa só o que falta ou está com hash errado, confere o SHA-256 e o `package.json` (nome e versão) e só então grava o arquivo. Rodar de novo não baixa nada. O pacote da SES-GO vai para o git porque a URL de homologação não tem versão: quando a SES-GO publicar outra versão, o download passa a falhar com mensagem de hash diferente, mas o arquivo versionado continua valendo. Licença dos dois pacotes: CC0-1.0.
+
+Dependências que o validador ainda busca no registro de pacotes (packages.fhir.org): `hl7.fhir.r4.core#4.0.1`, `hl7.terminology.r4#6.5.0` e `hl7.fhir.uv.extensions.r4#5.2.0`. Na S05, o validador recebe `-version 4.0.1 -ig fhir/pacotes/br.go.ses.reds-go-1.0.3.tgz -ig fhir/pacotes/br.go.ses.core-1.2.6.tgz` e o perfil `-profile https://fhir.saude.go.gov.br/r4/core/StructureDefinition/sumario-alta`.

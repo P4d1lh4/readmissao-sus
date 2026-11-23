@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from readmissao_sus.formato_md import data as _data
+from readmissao_sus.formato_md import gravar_entre_marcas
+from readmissao_sus.formato_md import milhar as _milhar
+from readmissao_sus.formato_md import pct as _pct
+from readmissao_sus.formato_md import pct_f as _pct_f
+from readmissao_sus.formato_md import tabela as _tabela
 from readmissao_sus.linkage_viabilidade import JANELA_DIAS, LIMIAR_COMPLETUDE, Readmissao, Resultado
 
 COMANDO = r".venv\Scripts\python scripts\medir_linkage.py"
@@ -66,13 +72,7 @@ def gerar_bloco(r: Resultado, data_geracao: str) -> str:
 
 def gravar_bloco(caminho: Path, bloco: str) -> None:
     """Substitui o bloco entre as marcas; se não houver marcas, acrescenta ao fim do arquivo."""
-    texto = caminho.read_text(encoding="utf-8") if caminho.exists() else "# Decisões\n"
-    inicio, fim = texto.find(MARCA_INICIO), texto.find(MARCA_FIM)
-    if inicio == -1 or fim == -1:
-        novo = texto.rstrip("\n") + "\n\n" + bloco + "\n"
-    else:
-        novo = texto[:inicio] + bloco + texto[fim + len(MARCA_FIM):]
-    caminho.write_text(novo, encoding="utf-8")
+    gravar_entre_marcas(caminho, bloco, MARCA_INICIO, MARCA_FIM, "# Decisões")
 
 
 def _tabela_cinco_numeros(r: Resultado) -> str:
@@ -139,28 +139,3 @@ def _tabela_plano_b(r: Resultado) -> str:
                for q, v in b.permanencia_quantis.items()]
     linhas += [[f"Permanência > {d} dias", f"{_milhar(n)} ({_pct(n, b.saidas)})"] for d, n in b.acima_de.items()]
     return _tabela(["Medida", "Valor"], linhas)
-
-
-def _tabela(cabecalho: list[str], linhas: list[list[str]]) -> str:
-    alinhamento = ["---"] + ["---:"] * (len(cabecalho) - 1)
-    return "\n".join(_linha(x) for x in [cabecalho, alinhamento, *linhas])
-
-
-def _linha(celulas: list[str]) -> str:
-    return "| " + " | ".join(celulas) + " |"
-
-
-def _pct(parte: int, total: int) -> str:
-    return _pct_f(parte / total) if total else "—"
-
-
-def _pct_f(fracao: float) -> str:
-    return f"{100 * fracao:.2f}%".replace(".", ",")
-
-
-def _milhar(n: int) -> str:
-    return f"{n:,}".replace(",", ".")
-
-
-def _data(d) -> str:
-    return d.strftime("%d/%m/%Y")

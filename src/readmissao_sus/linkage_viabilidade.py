@@ -10,21 +10,24 @@ Tratamentos (detalhados em docs/decisoes.md):
 - AIHs IDENT=5 (longa permanência) são continuação da AIH IDENT=1 de mesmo N_AIH: estendem a
   saída e trazem o motivo de saída final; nunca são internação-índice nem readmissão;
 - altas-índice cujos 30 dias seguintes passam da cobertura completa dos dados são censuradas.
+
+As regras de episódio vêm do SQL versionado em sql/ (01_staging.sql e 02_internacao.sql), o
+mesmo que monta data/sih.duckdb (banco.py). Aqui ele roda em memória e com sal vazio.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
 
 import duckdb
 import pandas as pd
 
 from readmissao_sus import dicionario_sih as dic
+from readmissao_sus.banco import preparar_internacoes
+from readmissao_sus.cobertura import JANELA_DIAS, LIMIAR_COMPLETUDE, Cobertura, calcular_cobertura
 
-JANELA_DIAS = 30
-LIMIAR_COMPLETUDE = 0.98
-LAG_MAXIMO_MESES = 6
+__all__ = ["JANELA_DIAS", "LIMIAR_COMPLETUDE", "Cobertura", "analisar", "analisar_dataframe"]
+
 DIAS_CONTIGUIDADE = 1
 COBRANCA_PERMANENCIA = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
 COLUNAS_BRUTAS = (
@@ -47,15 +50,6 @@ class Preparo:
     linhas_n_aih_repetido: int
     datas_invalidas: int
     internacoes: int
-
-
-@dataclass(frozen=True)
-class Cobertura:
-    ultima_competencia: str
-    completude_por_lag: dict[int, float]
-    fim: date
-    inicio: date
-    limite_indice: date
 
 
 @dataclass(frozen=True)
@@ -152,64 +146,28 @@ def analisar_dataframe(df: pd.DataFrame) -> Resultado:
 
 def preparar(con: duckdb.DuckDBPyConnection, relacao_bruta: str) -> Preparo:
     """Cria `competencias` (sem chave) e `internacoes` (chave só como hash) na conexão."""
-    cols = ", ".join(COLUNAS_BRUTAS)
-    con.execute(f"create or replace temp table bruto as select {cols} from {relacao_bruta}")
+    preparar_internacoes(con, relacao_bruta, sal="", completar=True)
     con.execute(
         """
         create or replace temp table competencias as
-        select DT_SAIDA, ANO_CMPT || MES_CMPT as competencia from bruto where IDENT = '1'
+        select dt_saida, competencia from stg_aih where ident = '1'
         """
     )
     con.execute(
-        """
-        create or replace temp table ident1 as
-        select * from bruto where IDENT = '1'
-        qualify row_number() over (
-            partition by N_AIH order by ANO_CMPT desc, MES_CMPT desc, DT_SAIDA desc) = 1
-        """
+        "create or replace temp table continuacao as "
+        "select distinct n_aih as N_AIH from stg_aih where ident = '5'"
     )
     con.execute(
         """
-        create or replace temp table continuacao as
-        select N_AIH,
-               max(DT_SAIDA) as dt_saida5,
-               arg_max(COBRANCA, DT_SAIDA || ANO_CMPT || MES_CMPT) as cobranca5,
-               arg_max(MORTE, DT_SAIDA || ANO_CMPT || MES_CMPT) as morte5
-        from bruto where IDENT = '5' group by N_AIH
-        """
-    )
-    obito = _lista_sql(dic.COBRANCA_OBITO)
-    con.execute(
-        f"""
-        create or replace temp table episodio as
-        select i.N_AIH as n_aih,
-               sha256(i.NASC || '|' || i.SEXO || '|' || i.CEP || '|' || i.MUNIC_RES) as chave,
-               i.CEP like '%000' as cep_generico,
-               i.CEP = '00000000' as cep_zerado,
-               substr(i.NASC, 5, 4) = '0101' as nasc_0101,
-               i.NASC < '19000101' as nasc_antigo,
-               i.CNES as cnes,
-               try_strptime(i.NASC, '%Y%m%d')::date
-                   > try_strptime(i.DT_INTER, '%Y%m%d')::date - interval 1 year as menor_1_ano,
-               try_strptime(i.DT_INTER, '%Y%m%d')::date as dt_inter,
-               try_strptime(
-                   case when c.dt_saida5 > i.DT_SAIDA then c.dt_saida5 else i.DT_SAIDA end,
-                   '%Y%m%d')::date as dt_saida,
-               case when c.dt_saida5 > i.DT_SAIDA then c.cobranca5 else i.COBRANCA end as cobranca,
-               case when c.dt_saida5 > i.DT_SAIDA then c.morte5 else i.MORTE end as morte
-        from ident1 i left join continuacao c using (N_AIH)
-        """
-    )
-    con.execute(
-        f"""
         create or replace temp table internacoes as
-        select * exclude (morte), (morte = '1' or cobranca in ({obito})) as obito
-        from episodio
-        where dt_inter is not null and dt_saida is not null and dt_saida >= dt_inter
+        select n_aih, chave, cep_generico, cep_zerado, nasc_0101, nasc_antes_1900 as nasc_antigo,
+               cnes, menor_1_ano, dt_inter, dt_saida, cobranca, obito
+        from internacao
         """
     )
-    for tabela in ("bruto", "ident1", "episodio"):
+    for tabela in ("internacao", "stg_aih", "dic_cobranca"):
         con.execute(f"drop table {tabela}")
+    con.execute("drop view rd_bruto")
     return _contagens_preparo(con, relacao_bruta)
 
 
@@ -240,37 +198,6 @@ def _contagens_preparo(con: duckdb.DuckDBPyConnection, relacao_bruta: str) -> Pr
         datas_invalidas=i1_distintas - internacoes,
         internacoes=internacoes,
     )
-
-
-def calcular_cobertura(con: duckdb.DuckDBPyConnection) -> Cobertura:
-    """Estima, pelo atraso entre saída e competência, até quando as saídas estão completas.
-
-    A completude do mês de saída m é a fração de AIHs processadas até (última competência - m)
-    meses depois, medida nas saídas antigas o bastante para terem o atraso todo observado.
-    """
-    ultima = con.execute("select max(competencia) from competencias").fetchone()[0]
-    primeira = con.execute("select min(competencia) from competencias").fetchone()[0]
-    ultima_idx = _indice_mes(ultima)
-    linhas = con.execute(
-        f"""
-        with t as (
-            select {_sql_indice_mes('competencia')} - {_sql_indice_mes('substr(DT_SAIDA, 1, 6)')} as lag
-            from competencias
-            where {_sql_indice_mes('substr(DT_SAIDA, 1, 6)')} between ? and ?
-        )
-        select lag, count(*) from t group by lag order by lag
-        """,
-        [_indice_mes(primeira), ultima_idx - LAG_MAXIMO_MESES],
-    ).fetchall()
-    total = sum(n for _, n in linhas)
-    acumulado, completude = 0, {}
-    for lag, n in linhas:
-        acumulado += n
-        completude[int(lag)] = _razao(acumulado, total)
-    lag_minimo = min((lag for lag, f in completude.items() if f >= LIMIAR_COMPLETUDE), default=0)
-    fim = _ultimo_dia_do_mes(ultima_idx - lag_minimo)
-    inicio = _primeiro_dia_do_mes(_indice_mes(primeira))
-    return Cobertura(ultima, completude, fim, inicio, fim - timedelta(days=JANELA_DIAS))
 
 
 def marcar_sobreposicoes(con: duckdb.DuckDBPyConnection) -> None:
@@ -440,19 +367,3 @@ def _rotulo_faixa(minimo: int, maximo: int | None) -> str:
     if maximo is None:
         return f"{minimo}+"
     return str(minimo) if minimo == maximo else f"{minimo}–{maximo}"
-
-
-def _indice_mes(aaaamm: str) -> int:
-    return int(aaaamm[:4]) * 12 + int(aaaamm[4:6]) - 1
-
-
-def _sql_indice_mes(expr: str) -> str:
-    return f"(cast(substr({expr}, 1, 4) as int) * 12 + cast(substr({expr}, 5, 2) as int) - 1)"
-
-
-def _primeiro_dia_do_mes(indice: int) -> date:
-    return date(indice // 12, indice % 12 + 1, 1)
-
-
-def _ultimo_dia_do_mes(indice: int) -> date:
-    return _primeiro_dia_do_mes(indice + 1) - timedelta(days=1)

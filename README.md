@@ -23,7 +23,7 @@ readmissao-sus/
 ├── docs/              # planejamento do projeto
 ├── fhir/pacotes/      # pacotes FHIR (.tgz) usados na validação
 ├── fhir/exemplos/     # Sumário de Alta de exemplo: um válido e um propositalmente inválido
-├── sql/               # SQL versionado do banco DuckDB (staging, internações, coorte)
+├── sql/               # SQL versionado do banco DuckDB (staging, internações, coorte, episódios)
 ├── src/readmissao_sus/  # código do pacote
 ├── tests/             # testes com pytest
 ├── pytest.ini
@@ -60,13 +60,13 @@ Para medir a viabilidade do linkage (chave NASC + SEXO + CEP + MUNIC_RES, guarda
 
 O documento recebe só agregados; nenhuma chave ou registro por internação é gravado.
 
-Para recriar do zero o banco DuckDB `data/sih.duckdb` (staging tipado, internações e coorte de altas, com o SQL versionado em `sql/`) e atualizar as contagens de `docs/coorte.md`:
+Para recriar do zero o banco DuckDB `data/sih.duckdb` (staging tipado, internações, coorte de altas e episódios, com o SQL versionado em `sql/`) e atualizar as contagens de `docs/coorte.md`:
 
 ```powershell
 .venv\Scripts\python scripts\construir_banco.py
 ```
 
-Leva cerca de 1 minuto. O banco guarda a chave de linkage como SHA-256 com sal; o sal vem de `READMISSAO_SAL_CHAVE` ou de `data/sal_chave.txt` (criado na primeira vez). Banco, sal e chave ficam em `data/`, fora do git. Filtros, marcas e o motivo do sal estão em `docs/coorte.md`.
+Leva cerca de 5 minutos. O banco junta em episódios as internações contíguas após transferência ou permanência (S07); a regra para alta seguida de nova AIH no mesmo dia ou no seguinte aguarda decisão (D03 em `docs/decisoes.md`) e muda com `--contiguas-sem-motivo nenhuma|mesmo_hospital|todas` (padrão `nenhuma`). O banco guarda a chave de linkage como SHA-256 com sal; o sal vem de `READMISSAO_SAL_CHAVE` ou de `data/sal_chave.txt` (criado na primeira vez). Banco, sal e chave ficam em `data/`, fora do git. Filtros, marcas e o motivo do sal estão em `docs/coorte.md`.
 
 Para baixar os pacotes FHIR do Sumário de Alta para `fhir/pacotes/` (versão e SHA-256 fixos; rodar de novo não baixa nada):
 

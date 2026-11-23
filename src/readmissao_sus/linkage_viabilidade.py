@@ -29,7 +29,6 @@ from readmissao_sus.cobertura import JANELA_DIAS, LIMIAR_COMPLETUDE, Cobertura, 
 __all__ = ["JANELA_DIAS", "LIMIAR_COMPLETUDE", "Cobertura", "analisar", "analisar_dataframe"]
 
 DIAS_CONTIGUIDADE = 1
-COBRANCA_PERMANENCIA = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
 COLUNAS_BRUTAS = (
     "N_AIH", "IDENT", "NASC", "SEXO", "CEP", "MUNIC_RES", "DT_INTER", "DT_SAIDA",
     "COBRANCA", "MORTE", "ANO_CMPT", "MES_CMPT", "CNES",
@@ -287,7 +286,7 @@ def medir_readmissao(
     medidas à parte: são continuação do mesmo episódio, não volta do paciente.
     """
     transferencia = _lista_sql(dic.COBRANCA_TRANSFERENCIA)
-    permanencia = _lista_sql(COBRANCA_PERMANENCIA)
+    permanencia = _lista_sql(dic.COBRANCA_PERMANENCIA)
     periodo = [cobertura.inicio, cobertura.limite_indice]
     obitos, censuradas = con.execute(
         f"""

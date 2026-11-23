@@ -237,3 +237,70 @@ O comando acima roda por `scripts/validar_fhir.py` (uso no README), com o valida
 | `None of the codings provided are in the value set 'Condition Category Codes'` (só com código `BRCategoriaDiagnostico`) | warning | O `diagnostico-sumario-alta` liga `Condition.category` a `BRCategoriaDiagnostico` (required), que não faz parte do ValueSet extensible do FHIR R4. O aviso vem do binding base, que o perfil não pode remover. |
 
 Nenhum erro (severidade `error`) precisou entrar na lista.
+
+## D03 — Contíguas sem motivo de transferência ou permanência (S07)
+
+**Estado: aguardando decisão do usuário.** Enquanto isso, o banco usa o padrão conservador (`contiguas_sem_motivo = 'nenhuma'`).
+
+### Pergunta
+
+A S07 junta em episódios as internações seguidas de nova AIH da mesma chave no dia da saída ou no seguinte quando a saída foi por transferência (`COBRANCA` 29, 31, 32) ou por permanência (21–28). Sobram as saídas sem óbito por outro motivo (alta 1x, encerramento administrativo 51, alta no parto 6x) seguidas de nova AIH em 0–1 dia: a D01 contou 27.916 delas entre as altas-índice. Essas internações são o mesmo episódio (AIH administrativa, troca de procedimento sem o código de permanência, transferência não codificada) ou são readmissões de verdade?
+
+### Como os números são gerados
+
+```powershell
+.venv\Scripts\python scripts\construir_banco.py
+```
+
+As tabelas "Contíguas sem motivo (D03)" e "Comparação das regras" do bloco `episodios` em `docs/coorte.md` vêm de `sql/04_episodio.sql` e `sql/05_episodio_contagens.sql`. O par medido é a primeira AIH seguinte (0–1 dia) de cada saída. Restrito às saídas no período das altas-índice, o total é **27.916**, o mesmo da D01. Em toda a base são 31.186 pares (números de 23/11/2026).
+
+### O que foi medido
+
+| Saída anterior | Hospital da nova AIH | Pares | Mesmo dia | Mesmo CID (3 car.) | Mesmo procedimento | Nova AIH eletiva |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1x (alta) | mesmo | 10.857 | 51% | 51% | 48% | 48% |
+| 1x (alta) | outro | 4.484 | 72% | 16% | 13% | 18% |
+| 51 (encerramento administrativo) | mesmo | 12.328 | 78% | 55% | 59% | 15% |
+| 51 (encerramento administrativo) | outro | 45 | 80% | 29% | 9% | 40% |
+| 6x (alta no parto) | mesmo | 3.305 | 52% | 2% | 1% | 3% |
+| 6x (alta no parto) | outro | 167 | 75% | 7% | 4% | 5% |
+
+- **85% são no mesmo hospital** (26.490 de 31.186). No encerramento administrativo (51), 99,6% são no mesmo hospital, 78% no mesmo dia e 59% com o mesmo procedimento: é a AIH fechada por motivo administrativo e reaberta para a mesma internação.
+- Na alta comum (1x) no mesmo hospital, metade repete o CID e o procedimento, e metade da nova AIH é eletiva: parece continuação programada (por exemplo, AIHs sucessivas do mesmo procedimento; o par mais comum, `0413040178` → `0413040178`, aparece 2.530 vezes).
+- Na alta no parto (6x) no mesmo hospital, o CID e o procedimento quase nunca se repetem: o par mais comum é parto normal (`0310010039`) seguido de outro procedimento obstétrico no mesmo hospital. Pode ser a AIH de um segundo procedimento da mesma estadia ou uma complicação no puerpério.
+- **Em outro hospital** (4.696 pares), 72% são no mesmo dia, mas o CID só se repete em 16%. Pode ser transferência sem o código, colisão de pessoas diferentes na chave (D01) ou readmissão de verdade. Os dados não permitem separar esses casos.
+
+Efeito na taxa de readmissão em 30 dias por episódio (bloco `episodios` de `docs/coorte.md`):
+
+| Regra | Episódios | Altas-índice | Taxa |
+| --- | ---: | ---: | ---: |
+| Transferência + permanência, `nenhuma` (padrão atual) | 1.162.040 | 963.767 | 11,78% |
+| … + contíguas no mesmo hospital, `mesmo_hospital` (proposta) | 1.135.651 | 940.139 | 9,53% |
+| … + todas as contíguas, `todas` | 1.131.007 | 935.991 | 9,13% |
+
+### Proposta (aguardando decisão)
+
+**Proponho `mesmo_hospital`**: juntar a alta sem óbito seguida de nova AIH da mesma chave, no mesmo CNES, no dia da saída ou no seguinte. Fora do mesmo hospital, a nova AIH continua contando como readmissão.
+
+Justificativa: no mesmo hospital, com 0–1 dia, o padrão é administrativo (o 51 quase sempre, procedimento e CID repetidos, AIH eletiva marcada para o dia seguinte). Nesses casos, o paciente não voltou depois de ir para casa, e um modelo treinado com esse rótulo aprenderia a prever o faturamento em várias AIHs, não a volta do paciente. Em outro hospital, o sinal é fraco (CID repetido em 16%), e juntar esconderia readmissões reais e colisões.
+
+Ressalvas:
+
+- com a proposta, a taxa fica em 9,53%, abaixo da faixa de 11–14% da literatura citada na D01. As referências não dizem como trataram AIHs administrativas, então a comparação é só indicativa;
+- uma regra intermediária seria juntar só o encerramento administrativo (51) no mesmo hospital. Ela não está implementada; se for a escolhida, é uma opção nova em `RegraEpisodio`.
+
+### Por que o padrão é `nenhuma`
+
+Até a decisão, o banco junta só o que o motivo de saída (`COBRANCA`) justifica pelo dicionário. A alta seguida de nova AIH continua como readmissão. O erro é conhecido e medido (a taxa fica cerca de 2,2 pontos acima da proposta), e nenhum evento some do rótulo sem decisão.
+
+### Como aplicar a decisão
+
+Só muda o parâmetro. Para testar sem mudar o padrão:
+
+```powershell
+.venv\Scripts\python scripts\construir_banco.py --contiguas-sem-motivo mesmo_hospital
+```
+
+Para adotar de vez, troque `REGRA_PADRAO` em `src/readmissao_sus/episodios.py` para `RegraEpisodio(contiguas_sem_motivo="mesmo_hospital")` (ou `"todas"`) e recrie o banco. A comparação das quatro regras é regerada a cada construção. Os testes das três opções ficam em `tests/test_episodios.py`.
+
+**Decisão do usuário:** _pendente._

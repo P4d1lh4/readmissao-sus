@@ -1,8 +1,9 @@
-"""Banco DuckDB do SIH-RD (história S06): staging, internações e coorte a partir do SQL em sql/.
+"""Banco DuckDB do SIH-RD (histórias S06 e S07): staging, internações, coorte e episódios.
 
-O SQL versionado em sql/ é a única fonte das regras de episódio (deduplicação por N_AIH,
-IDENT = 5 como continuação, óbito) e da coorte. linkage_viabilidade (S03) usa os mesmos
-arquivos 01 e 02, só que num banco em memória e com sal vazio.
+O SQL versionado em sql/ é a única fonte das regras de internação (deduplicação por N_AIH,
+IDENT = 5 como continuação, óbito), da coorte e da junção de episódios (S07, episodios.py).
+linkage_viabilidade (S03) usa os mesmos arquivos 01 e 02, só que num banco em memória e com
+sal vazio.
 """
 
 from __future__ import annotations
@@ -17,8 +18,9 @@ import duckdb
 
 from readmissao_sus import dicionario_sih as dic
 from readmissao_sus.cobertura import Cobertura, calcular_cobertura
+from readmissao_sus.episodios import REGRA_PADRAO, Episodios, RegraEpisodio, comparar_regras
+from readmissao_sus.sql_versionado import executar_sql
 
-DIR_SQL = Path(__file__).resolve().parents[2] / "sql"
 SQL_INTERNACOES = ("01_staging.sql", "02_internacao.sql")
 SQL_COORTE = ("03_coorte.sql",)
 COLUNAS_FONTE = (
@@ -36,6 +38,7 @@ class Construcao:
     cobertura: Cobertura
     filtros: list[tuple[int, str, int, int, int]]
     detalhes: dict[str, list[tuple[str, int]]]
+    episodios: Episodios | None = None
 
 
 def obter_sal(arquivo: Path) -> str:
@@ -58,18 +61,16 @@ def obter_sal(arquivo: Path) -> str:
     return sal
 
 
-def executar_sql(con: duckdb.DuckDBPyConnection, nome: str) -> None:
-    con.execute((DIR_SQL / nome).read_text(encoding="utf-8"))
-
-
 def carregar_dicionario(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(
         "create or replace table dic_cobranca "
-        "(codigo varchar primary key, descricao varchar, obito boolean, transferencia boolean)"
+        "(codigo varchar primary key, descricao varchar, obito boolean, transferencia boolean, "
+        "permanencia boolean)"
     )
     con.executemany(
-        "insert into dic_cobranca values (?, ?, ?, ?)",
-        [(c, d, c in dic.COBRANCA_OBITO, c in dic.COBRANCA_TRANSFERENCIA)
+        "insert into dic_cobranca values (?, ?, ?, ?, ?)",
+        [(c, d, c in dic.COBRANCA_OBITO, c in dic.COBRANCA_TRANSFERENCIA,
+          c in dic.COBRANCA_PERMANENCIA)
          for c, d in sorted(dic.COBRANCA.items())],
     )
 
@@ -110,8 +111,10 @@ def montar_coorte(con: duckdb.DuckDBPyConnection, inicio: date, corte: date) -> 
         executar_sql(con, nome)
 
 
-def construir_banco(destino: Path, arquivos: list[Path], sal: str) -> Construcao:
-    """Recria `destino` do zero a partir dos Parquet.
+def construir_banco(
+    destino: Path, arquivos: list[Path], sal: str, regra: RegraEpisodio = REGRA_PADRAO
+) -> Construcao:
+    """Recria `destino` do zero a partir dos Parquet; os episódios seguem `regra` (S07).
 
     Monta num arquivo temporário ao lado e só substitui o banco antigo no fim, para que uma
     falha no meio não deixe um banco pela metade.
@@ -129,8 +132,9 @@ def construir_banco(destino: Path, arquivos: list[Path], sal: str) -> Construcao
         preparar_internacoes(con, "parquet", sal)
         cobertura = calcular_cobertura(con, COMPETENCIAS_IDENT1)
         montar_coorte(con, cobertura.inicio, cobertura.limite_indice)
+        episodios = comparar_regras(con, regra, cobertura.inicio, cobertura.limite_indice)
         _gravar_parametros(con, cobertura)
-        resultado = ler_construcao(con, cobertura)
+        resultado = ler_construcao(con, cobertura, episodios)
         con.execute("checkpoint")
     finally:
         con.close()
@@ -139,7 +143,9 @@ def construir_banco(destino: Path, arquivos: list[Path], sal: str) -> Construcao
     return resultado
 
 
-def ler_construcao(con: duckdb.DuckDBPyConnection, cobertura: Cobertura) -> Construcao:
+def ler_construcao(
+    con: duckdb.DuckDBPyConnection, cobertura: Cobertura, episodios: Episodios | None = None
+) -> Construcao:
     filtros = con.execute(
         "select ordem, etapa, antes, removidas, depois from coorte_filtros order by ordem"
     ).fetchall()
@@ -148,7 +154,7 @@ def ler_construcao(con: duckdb.DuckDBPyConnection, cobertura: Cobertura) -> Cons
         "select secao, item, linhas from coorte_detalhes order by secao, ordem"
     ).fetchall():
         detalhes.setdefault(secao, []).append((item, linhas))
-    return Construcao(cobertura, filtros, detalhes)
+    return Construcao(cobertura, filtros, detalhes, episodios)
 
 
 def _gravar_parametros(con: duckdb.DuckDBPyConnection, cobertura: Cobertura) -> None:

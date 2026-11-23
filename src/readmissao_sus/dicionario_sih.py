@@ -68,6 +68,8 @@ COBRANCA = {
 }
 
 COBRANCA_TRANSFERENCIA = frozenset({"29", "31", "32"})
+# 2x: a AIH fecha, mas o paciente continua internado (D01, tratamento 6).
+COBRANCA_PERMANENCIA = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
 COBRANCA_OBITO = frozenset({"41", "42", "43", "65", "66", "67"})
 
 # CNV/CARATEND.CNV — "Caráter atendimento".

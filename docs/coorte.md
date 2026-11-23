@@ -247,15 +247,23 @@ Regra usada nas tabelas do banco: **transferência + permanência** (`juntar_per
 | … início em 0–1 dia | 27.898 |
 | … em 2–7 dias | 28.196 |
 | … em 8–30 dias | 57.417 |
+| Readmitidas em 30 dias sem as voltas programadas (D04) | 69.868 |
+| Taxa de readmissão não planejada em 30 dias (alvo da D04) | 7,25% |
+| Readmitidas com a primeira volta programada | 45.610 |
+| … programada por caráter eletivo | 43.756 |
+| … por procedimento sempre programado | 15.019 |
+| … por diagnóstico sempre programado | 4 |
+| … e com volta não planejada depois, ainda em 30 dias (continuam no alvo) | 1.967 |
+| Reclassificadas: readmitidas que saem do alvo (só voltas programadas) | 43.643 |
 
 #### Comparação das regras
 
-| Regra | Internações | Episódios | Altas-índice | Readmitidas | Taxa 30 dias |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| transferência | 1.280.396 | 1.253.599 | 1.042.983 | 193.105 | 18,51% |
-| transferência + permanência (padrão) | 1.280.396 | 1.162.040 | 963.767 | 113.511 | 11,78% |
-| transferência + permanência + contíguas sem motivo no mesmo hospital (proposta D03) | 1.280.396 | 1.135.651 | 940.139 | 89.641 | 9,53% |
-| transferência + permanência + todas as contíguas sem motivo | 1.280.396 | 1.131.007 | 935.991 | 85.460 | 9,13% |
+| Regra | Internações | Episódios | Altas-índice | Readmitidas | Taxa 30 dias | Não planejadas (D04) | Taxa não planejada |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| transferência | 1.280.396 | 1.253.599 | 1.042.983 | 193.105 | 18,51% | 134.480 | 12,89% |
+| transferência + permanência (padrão) | 1.280.396 | 1.162.040 | 963.767 | 113.511 | 11,78% | 69.868 | 7,25% |
+| transferência + permanência + contíguas sem motivo no mesmo hospital (proposta D03) | 1.280.396 | 1.135.651 | 940.139 | 89.641 | 9,53% | 51.891 | 5,52% |
+| transferência + permanência + todas as contíguas sem motivo | 1.280.396 | 1.131.007 | 935.991 | 85.460 | 9,13% | 48.392 | 5,17% |
 
 Referência (D01, por internação, sem juntar): 20,32% bruta; 11,82% tirando as altas-índice seguidas de contígua após transferência ou permanência.
 

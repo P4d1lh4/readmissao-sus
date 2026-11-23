@@ -304,3 +304,81 @@ Só muda o parâmetro. Para testar sem mudar o padrão:
 Para adotar de vez, troque `REGRA_PADRAO` em `src/readmissao_sus/episodios.py` para `RegraEpisodio(contiguas_sem_motivo="mesmo_hospital")` (ou `"todas"`) e recrie o banco. A comparação das quatro regras é regerada a cada construção. Os testes das três opções ficam em `tests/test_episodios.py`.
 
 **Decisão do usuário:** _pendente._
+
+## D04 — Readmissões programadas fora do alvo (S13)
+
+**Estado: decidido pelo usuário em 23/11/2026** (tirar as programadas do alvo). A regra abaixo é a padrão da S13.
+
+### Pergunta
+
+Na S10, o modelo teve ROC-AUC 0,839 no teste, e o sinal se concentrou nas internações eletivas (0,902). A explicação provável era o rótulo incluir voltas programadas: ciclos de quimioterapia, procedimentos em etapas, AIHs sucessivas. Essas voltas são fáceis de prever pelo procedimento e pelo hospital, mas não respondem à pergunta clínica, que é a volta não planejada.
+
+### Regra
+
+O alvo novo é `readmissao_nao_planejada_30d`. A busca é a mesma de `readmissao_30d` (próximo episódio da mesma chave que começa até 30 dias depois da alta), mas só conta uma volta **não programada**. Uma volta é programada quando a primeira AIH dela:
+
+1. é eletiva (`CAR_INT = 01`); ou
+2. tem o procedimento principal (`PROC_REA`) ou o diagnóstico principal (`DIAG_PRINC`) numa lista de sempre programados.
+
+A volta programada não conta como evento e também não censura. Se depois dela, ainda dentro dos 30 dias, vier uma volta não planejada, a alta conta como readmitida. `readmissao_30d` continua no banco como coluna auxiliar.
+
+A lista é inspirada no Planned Readmission Algorithm v4.0 do CMS, da medida Hospital-Wide Readmission (Yale New Haven Health Services Corporation/CORE, tabelas PR1–PR4). Nesse algoritmo, transplante, quimioterapia de manutenção e reabilitação são sempre programados. A adaptação ao SIGTAP usa os nomes das tabelas `DBF/TB_FORMA.DBF` e `DBF/TB_SUBGR.DBF` do `TAB_SIH.zip` do DATASUS. O código fica em `SEMPRE_PROGRAMADOS`, em `src/readmissao_sus/dicionario_sih.py`.
+
+| Tipo | Prefixo | Descrição (SIGTAP / CID-10) |
+| --- | --- | --- |
+| procedimento | 030401 | Radioterapia |
+| procedimento | 030402 a 030407 | Quimioterapia paliativa, para controle temporário, prévia, adjuvante, curativa e de tumores de criança e adolescente |
+| procedimento | 030408 | Quimioterapia - procedimentos especiais (internação para quimioterapia contínua ou de leucemias) |
+| procedimento | 030409 | Medicina nuclear - terapêutica oncológica (iodoterapia) |
+| procedimento | 0505 | Transplante de órgãos, tecidos e células |
+| CID | Z50 | Cuidados envolvendo procedimentos de reabilitação |
+| CID | Z510, Z511, Z512 | Sessão de radioterapia, sessão de quimioterapia, outras quimioterapias |
+
+Ficam de fora de propósito, porque no SIGTAP são volta não planejada:
+
+- 030410: tratamento clínico e intercorrências do paciente oncológico;
+- 0305: nefrologia. Na AIH, a diálise só aparece como intercorrência; a diálise de manutenção é APAC e não entra no SIH-RD;
+- 0506: intercorrências pós-transplante;
+- 0501 a 0504: ações do doador.
+
+O parto programado não tem código próprio no SIGTAP e entra pelo caráter eletivo.
+
+### Resultado (construção de 23/11/2026)
+
+Os números vêm do bloco `episodios` de `docs/coorte.md`, com a regra padrão dos episódios (transferência + permanência):
+
+| Item | Valor |
+| --- | ---: |
+| Altas-índice | 963.767 |
+| Readmitidas em 30 dias (`readmissao_30d`) | 113.511 (11,78%) |
+| Readmitidas com a primeira volta programada | 45.610 |
+| … por caráter eletivo | 43.756 |
+| … por procedimento sempre programado | 15.019 |
+| … por diagnóstico sempre programado | 4 |
+| … com volta não planejada depois, ainda em 30 dias (continuam no alvo) | 1.967 |
+| **Reclassificadas** (saem do alvo) | **43.643** |
+| **Readmitidas não planejadas** (`readmissao_nao_planejada_30d`) | **69.868 (7,25%)** |
+
+Os motivos se sobrepõem: uma volta eletiva de quimioterapia conta nos dois.
+
+Variante sem o caráter eletivo, em que só a lista tira a volta do alvo (`--eletiva-nao-programada`): 99.557 readmitidas (10,33%).
+
+As voltas eletivas parecem mesmo programadas. De 85% a 98% delas voltam ao mesmo hospital da alta, conforme o subgrupo. As mais comuns são oncologia (0304, 15.944), tratamento clínico (0303, 8.699), consultas e acompanhamentos (0301, 4.336) e cirurgias em etapas (0415 cirurgias múltiplas, 3.635; 0413 cirurgia reparadora, 3.461).
+
+### Comparação com a literatura
+
+A taxa nova (7,25%) fica **abaixo** da faixa de 11–14% da D01. A referência mais próxima do alvo novo é Porto Alegre: 13,7% de readmissões não eletivas. As diferenças prováveis:
+
+- **População.** Porto Alegre mede só a Medicina Interna de um hospital terciário, que é uma população de risco alto. Aqui entram todas as altas do estado, inclusive obstetrícia e cirurgia eletiva, que voltam pouco.
+- **Linkage.** No CEP genérico, a chave junta pessoas diferentes e parte das readmissões reais some: no teste da S10, a taxa foi de 9,9% nesse grupo, contra 13,6% no CEP completo.
+- **Caráter eletivo.** Ele é um critério mais largo que o do CMS, que olha o procedimento e o diagnóstico, não o caráter. Uma volta eletiva por complicação sai do alvo. A variante sem o caráter (10,33%) mede o tamanho desse efeito.
+
+A comparação é só indicativa: as referências não descrevem como trataram AIHs administrativas nem a busca por pessoa.
+
+### Como mudar a regra
+
+```powershell
+.venv\Scripts\python scripts\construir_banco.py --eletiva-nao-programada
+```
+
+A lista fica em `SEMPRE_PROGRAMADOS` e a regra em `RegraProgramada`, em `src/readmissao_sus/programadas.py`. Os testes estão em `tests/test_programadas.py`.

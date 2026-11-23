@@ -1,6 +1,8 @@
-# Modelo com validação temporal (S10)
+# Modelo com validação temporal (S10, alvo da S13)
 
-Modelo de readmissão em 30 dias treinado sobre `atributo_episodio` (S09, `docs/atributos.md`). Adapta `src/modeling.py`, `src/artifacts.py` e `src/explain.py` do Health-Project. O código fica em `src/readmissao_sus/modelagem.py` (atributos, pipeline, divisão, folds, limiar), `avaliacao.py` (métricas agregadas), `investigacao.py` (checagens de vazamento), `treino.py` (fluxo e gravação), `artefatos.py` (leitura do modelo salvo) e `explicacao.py` (contribuições SHAP do XGBoost). Os números estão no README, na seção "Resultados do modelo (S10)", e em `reports/metrics.json`.
+**Alvo (S13):** `readmissao_nao_planejada_30d`, a readmissão em 30 dias sem as voltas programadas (eletivas ou com procedimento ou CID sempre programado; regra na D04 em `docs/decisoes.md`). O protocolo abaixo é o da S10, que usava `readmissao_30d`. Os resultados da S10 ficam em `reports/metrics_s10.json` e `reports/importancia_atributos_s10.csv`.
+
+Modelo de readmissão em 30 dias treinado sobre `atributo_episodio` (S09, `docs/atributos.md`). Adapta `src/modeling.py`, `src/artifacts.py` e `src/explain.py` do Health-Project. O código fica em `src/readmissao_sus/modelagem.py` (atributos, pipeline, divisão, folds, limiar), `avaliacao.py` (métricas agregadas), `investigacao.py` (checagens de vazamento), `treino.py` (fluxo e gravação), `artefatos.py` (leitura do modelo salvo) e `explicacao.py` (contribuições SHAP do XGBoost). Os números estão no README, na seção "Resultados do modelo (S13)", com os da S10 ao lado,, e em `reports/metrics.json`.
 
 ```powershell
 .venv\Scripts\python scripts\treinar.py
@@ -29,12 +31,13 @@ Modelo de readmissão em 30 dias treinado sobre `atributo_episodio` (S09, `docs/
 | --- | --- |
 | `episodio_id`, `chave` | identificadores; a chave agrupa a validação cruzada |
 | `dt_inter`, `dt_saida` | datas; separam treino e teste |
-| `readmissao_30d` | alvo |
+| `readmissao_nao_planejada_30d` | alvo (D04) |
+| `readmissao_30d` | alvo da S10; inclui as voltas programadas. Fica como coluna auxiliar |
 | `ano_alta` | constante dentro do treino (2023) e dentro do teste (2024): não ensina nada e, no teste, seria um valor nunca visto |
 | `historico_completo` | constante (falso) em todo o treino: nenhuma alta de 2023 tem a janela de 365 dias inteira nos dados. Como atributo, o modelo não aprenderia nada com ela. Fica como marca de qualidade, e o teste é avaliado em separado por ela |
 | `chave_colidente` | usa episódios da chave em qualquer data, inclusive depois da alta: é informação do futuro. Fica só para avaliar em separado |
 | `episodio_sobreposto` | o episódio com que se sobrepõe pode terminar depois da alta deste. Fora por cautela |
-| `dias_ate_readmissao` (de `coorte_episodio`) | é o próprio rótulo em dias; lido só para a checagem das readmissões em 0–1 dia |
+| `dias_ate_readmissao_nao_planejada` (de `coorte_episodio`) | é o próprio rótulo em dias; lido como `dias_ate_readmissao` só para a checagem das readmissões em 0–1 dia |
 
 Decisões da história:
 
@@ -59,7 +62,7 @@ ROC-AUC acima de 0,80 é tratado como suspeita de vazamento e investigado (`inve
 - **ablações:** o vencedor reajustado sem o histórico da chave e sem o hospital;
 - **readmissões em 0–1 dia:** o teste sem os positivos cuja readmissão começou no dia da alta ou no seguinte. São as AIHs contíguas que a D03 (pendente) pode juntar ao episódio, em boa parte administrativas e fáceis de prever pelo hospital e pelo histórico de AIHs sucessivas.
 
-O resultado da investigação está no README.
+Na S13, o teste por caráter da internação-índice (`car_int` em `teste_por_grupo`) mostra se a diferença entre eletivo e urgência da S10 vinha das voltas programadas. O resultado da investigação está no README.
 
 ## Saídas
 

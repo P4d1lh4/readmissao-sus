@@ -44,6 +44,7 @@ ORDEM_PACOTES = ("br.go.ses.reds-go", "br.go.ses.core")
 SEVERIDADES_ERRO = frozenset({"fatal", "error"})
 SEVERIDADE_AVISO = "warning"
 COMENTARIO_FHIRPATH = re.compile(r"/\*.*?\*/")
+EXTENSAO_ARQUIVO = "http://hl7.org/fhir/StructureDefinition/operationoutcome-file"
 
 
 class ErroValidador(RuntimeError):
@@ -240,6 +241,27 @@ def interpretar_outcome(
             conhecida = next((c for c in conhecidas if c.casa(texto)), None)
         mensagens.append(Mensagem(severidade, _local(issue), texto, conhecida))
     return Resumo(tuple(mensagens))
+
+
+def interpretar_por_arquivo(
+    saida: dict, conhecidas: Iterable[MensagemConhecida] = MENSAGENS_CONHECIDAS
+) -> dict[str, Resumo]:
+    """Resumo por arquivo validado (pasta ou vários arquivos): nome do arquivo -> Resumo.
+
+    O validador marca cada OperationOutcome com a extensão operationoutcome-file.
+    """
+    if saida.get("resourceType") == "Bundle":
+        outcomes = [entrada.get("resource", {}) for entrada in saida.get("entry", [])]
+    else:
+        outcomes = [saida]
+    resultado = {}
+    for outcome in outcomes:
+        arquivo = next(
+            (x.get("valueString", "") for x in outcome.get("extension", []) if x.get("url") == EXTENSAO_ARQUIVO),
+            "",
+        )
+        resultado[Path(arquivo).name or "?"] = interpretar_outcome(outcome, conhecidas)
+    return resultado
 
 
 def formatar_resumo(resumo: Resumo) -> str:

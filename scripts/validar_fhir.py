@@ -3,6 +3,7 @@
 Uso:
     .venv\\Scripts\\python scripts\\validar_fhir.py fhir\\exemplos\\sumario-alta-valido.json
     .venv\\Scripts\\python scripts\\validar_fhir.py ARQUIVO.json --sem-terminologia
+    .venv\\Scripts\\python scripts\\validar_fhir.py fhir\\saida   (pasta: todos os .json numa execução)
 
 Valida contra os pacotes de fhir/pacotes/ e o perfil sumario-alta (decisão D02).
 Código de saída: 0 sem erros; 1 com erro de validação; 2 se o validador não rodou.
@@ -32,6 +33,7 @@ from readmissao_sus.validador_fhir import (  # noqa: E402
     formatar_resumo,
     garantir_validador,
     interpretar_outcome,
+    interpretar_por_arquivo,
 )
 
 DIR_CACHE = RAIZ / ".cache"
@@ -46,7 +48,7 @@ MODO_FALLBACK = "sem terminologia (-tx n/a), porque tx.fhir.org não respondeu"
 
 def _argumentos(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Valida um recurso FHIR com o validador HL7 em Docker.")
-    parser.add_argument("arquivo", type=Path, help="arquivo JSON a validar")
+    parser.add_argument("arquivo", type=Path, help="arquivo JSON ou pasta de arquivos JSON a validar")
     parser.add_argument("--perfil", default=PERFIL_SUMARIO_ALTA, help="URL canônica do perfil")
     parser.add_argument(
         "--sem-terminologia",
@@ -58,7 +60,13 @@ def _argumentos(argv: list[str] | None) -> argparse.Namespace:
 
 
 def _eh_bundle(arquivo: Path) -> bool:
-    """JSON ilegível segue como recurso avulso: o próprio validador reporta o erro."""
+    """JSON ilegível segue como recurso avulso: o próprio validador reporta o erro.
+
+    Numa pasta, vale como Bundle se todos os .json forem Bundles.
+    """
+    if arquivo.is_dir():
+        jsons = sorted(arquivo.glob("*.json"))
+        return bool(jsons) and all(_eh_bundle(j) for j in jsons)
     try:
         return json.loads(arquivo.read_text(encoding="utf-8")).get("resourceType") == "Bundle"
     except (ValueError, AttributeError):
@@ -98,12 +106,27 @@ def _sem_servidor_de_terminologia(processo: subprocess.CompletedProcess) -> bool
     return SEM_SERVIDOR_TX in processo.stdout + processo.stderr
 
 
+def _imprimir_por_arquivo(outcome: dict) -> None:
+    por_arquivo = interpretar_por_arquivo(outcome)
+    for nome, parcial in sorted(por_arquivo.items()):
+        situacao = "VÁLIDO" if parcial.valido else "INVÁLIDO"
+        print(
+            f"- {nome}: {parcial.erros} erro(s), {parcial.avisos} aviso(s), "
+            f"{parcial.conhecidas} conhecida(s) — {situacao}"
+        )
+    validos = sum(1 for r in por_arquivo.values() if r.valido)
+    print(f"Arquivos válidos: {validos} de {len(por_arquivo)}")
+
+
 def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     args = _argumentos(argv)
-    if not args.arquivo.is_file():
+    if not (args.arquivo.is_file() or args.arquivo.is_dir()):
         print(f"ERRO: arquivo não encontrado: {args.arquivo}", file=sys.stderr)
+        return SAIDA_FALHA
+    if args.arquivo.is_dir() and not any(args.arquivo.glob("*.json")):
+        print(f"ERRO: nenhum .json em {args.arquivo}", file=sys.stderr)
         return SAIDA_FALHA
     DIR_CACHE.mkdir(exist_ok=True)
     modo = MODO_SEM_TX if args.sem_terminologia else MODO_COM_TX
@@ -124,6 +147,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Arquivo: {args.arquivo}")
     print(f"Perfil: {args.perfil}")
     print(f"Modo: {modo}")
+    if args.arquivo.is_dir():
+        _imprimir_por_arquivo(outcome)
+        print("Total da pasta:")
     print(formatar_resumo(resumo))
     return SAIDA_VALIDO if resumo.valido else SAIDA_INVALIDO
 

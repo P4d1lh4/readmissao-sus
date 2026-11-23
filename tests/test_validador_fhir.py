@@ -154,3 +154,25 @@ def test_mensagens_conhecidas_do_perfil_sao_rebaixadas():
 def test_mensagem_conhecida_nao_cobre_outro_codigo():
     outro = TEXTO_CATEGORIA.replace("BRCategoriaDiagnostico#01", "OutroSistema#01")
     assert interpretar_outcome(_outcome(_issue("warning", outro))).avisos == 1
+
+
+def _outcome_de(arquivo, *issues):
+    return {
+        **_outcome(*issues),
+        "extension": [{"url": validador_fhir.EXTENSAO_ARQUIVO, "valueString": f"/entrada/saida/{arquivo}"}],
+    }
+
+
+def test_resumo_por_arquivo_numa_pasta():
+    saida = {
+        "resourceType": "Bundle",
+        "entry": [
+            {"resource": _outcome_de("a.json", _issue("information", "All OK"))},
+            {"resource": _outcome_de("b.json", _issue("error", "x"), _issue("warning", TEXTO_CATEGORIA))},
+        ],
+    }
+    por_arquivo = validador_fhir.interpretar_por_arquivo(saida)
+
+    assert sorted(por_arquivo) == ["a.json", "b.json"]
+    assert por_arquivo["a.json"].valido
+    assert (por_arquivo["b.json"].erros, por_arquivo["b.json"].conhecidas) == (1, 1)

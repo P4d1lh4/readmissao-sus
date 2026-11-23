@@ -30,3 +30,6 @@ fhir/pacotes/*.part
 
 # Validador HL7 (validator_cli.jar) e saídas temporárias de scripts/validar_fhir.py
 .cache/
+
+# Sumários de Alta gerados de episódios reais do SIH (scripts/gerar_sumarios.py): fora do git
+fhir/saida/

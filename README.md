@@ -48,3 +48,11 @@ Para baixar o SIH-RD de PE (2023–2024) para `data/raw/`, convertê-lo em Parqu
 O script é idempotente: rodar de novo não baixa nem converte o que já existe.
 
 Os arquivos `.dbc` do DATASUS são lidos com `pyreaddbc`, que funciona no Windows (o PySUS não funciona bem nesse sistema).
+
+Para medir a viabilidade do linkage (chave NASC + SEXO + CEP + MUNIC_RES, guardada só como hash) e atualizar os números em `docs/decisoes.md`:
+
+```powershell
+.venv\Scripts\python scripts\medir_linkage.py
+```
+
+O documento recebe só agregados; nenhuma chave ou registro por internação é gravado.

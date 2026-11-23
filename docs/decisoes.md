@@ -382,3 +382,5 @@ A comparação é só indicativa: as referências não descrevem como trataram A
 ```
 
 A lista fica em `SEMPRE_PROGRAMADOS` e a regra em `RegraProgramada`, em `src/readmissao_sus/programadas.py`. Os testes estão em `tests/test_programadas.py`.
+
+**Decisão do usuário (23/11/2026):** manter a volta eletiva como programada. Ficam valendo a regra padrão e a taxa de 7,25%. A variante só com a lista do SIGTAP (10,33%) fica registrada aqui como comparação.

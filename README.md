@@ -39,4 +39,12 @@ py -3.13 -m venv .venv
 .venv\Scripts\python -m pytest -q
 ```
 
+Para baixar o SIH-RD de PE (2023–2024) para `data/raw/`, convertê-lo em Parquet (`data/parquet/`) e gerar o inventário de colunas (`docs/inventario-sih.md`):
+
+```powershell
+.venv\Scripts\python scripts\baixar_sih.py
+```
+
+O script é idempotente: rodar de novo não baixa nem converte o que já existe.
+
 Os arquivos `.dbc` do DATASUS são lidos com `pyreaddbc`, que funciona no Windows (o PySUS não funciona bem nesse sistema).

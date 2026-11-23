@@ -4,7 +4,7 @@ Registro das decisões do projeto. Cada decisão diz o que foi medido, o que se 
 
 ## D01 — Viabilidade do linkage determinístico (S03)
 
-**Estado: aguardando decisão do usuário.**
+**Estado: decidida pelo usuário em 23/11/2026 — seguir com o linkage.**
 
 ### Pergunta
 
@@ -151,7 +151,7 @@ Seguir com o linkage enquanto **as chaves colidentes forem no máximo 5% das cha
 
 Justificativa: as colisões ficam abaixo do teto; o placeholder dominante (CEP genérico) aumenta as colisões, mas não infla a taxa; e a taxa sem contíguas (11,82%) bate com a literatura brasileira (11,6% no SIH/SUS do Rio com CNS; 13,7% em Porto Alegre). O plano B seria a escolha se o usuário preferir um alvo sem erro de linkage, ao custo de abandonar a pergunta central do projeto.
 
-**Decisão do usuário:** _pendente._
+**Decisão do usuário (23/11/2026):** seguir com o linkage, com readmissão em 30 dias como alvo principal e as quatro condições acima. O óbito hospitalar fica como alvo de reserva.
 
 ## D02 — Perfil FHIR do Sumário de Alta (S04)
 

@@ -24,6 +24,8 @@ readmissao-sus/
 ├── fhir/pacotes/      # pacotes FHIR (.tgz) usados na validação
 ├── fhir/exemplos/     # Sumário de Alta de exemplo: um válido e um propositalmente inválido
 ├── fhir/saida/        # Sumários de Alta gerados de episódios reais (fora do git)
+├── models/           # modelo treinado e metadata (fora do git)
+├── reports/          # métricas agregadas do modelo (só metrics.json e importancia_atributos.csv vão para o git)
 ├── sql/               # SQL versionado do banco DuckDB (staging, internações, coorte, episódios)
 ├── src/readmissao_sus/  # código do pacote
 ├── tests/             # testes com pytest
@@ -78,6 +80,16 @@ Para baixar os pacotes FHIR do Sumário de Alta para `fhir/pacotes/` (versão e 
 ```
 
 Não há perfil FHIR nacional do Sumário de Alta publicado. O projeto usa o perfil `sumario-alta` do guia CORE da SES-GO (versão 1.2.6, **rascunho**, ambiente de homologação) com os artefatos da RNDS do pacote `br.go.ses.reds-go`. Os motivos e as URLs canônicas estão na decisão D02 de `docs/decisoes.md`.
+
+### Treinar o modelo (S10)
+
+Depois de `construir_banco.py`, para treinar o modelo de readmissão em 30 dias com validação temporal:
+
+```powershell
+.venv\Scripts\python scripts\treinar.py
+```
+
+Leva cerca de 10 minutos em CPU de 12 threads (`random_state = 42`). O script lê `atributo_episodio`, treina com as altas de 2023 e testa nas de 2024 até o corte de censura (01/10/2024). Grava o pipeline e o limiar em `models/` (fora do git) e só agregados em `reports/metrics.json` e `reports/importancia_atributos.csv`. Nenhuma previsão por episódio é gravada. Atributos que entram e ficam fora, a validação cruzada e as checagens estão em `docs/modelo.md`; os números estão em "Resultados do modelo (S10)", no fim deste README.
 
 ### Validar um documento FHIR (validador HL7 em Docker)
 
@@ -156,3 +168,57 @@ Os testes de integração (rodam o validador de verdade; pulados se o Docker est
 ```powershell
 .venv\Scripts\python -m pytest -m integracao
 ```
+
+## Resultados do modelo (S10)
+
+Treino de 23/11/2026 com `.venv\Scripts\python scripts\treinar.py` (padrões: `--fracao-cv 0.5`, `--random-state 42`), 10 minutos em CPU de 12 threads. Os números completos estão em `reports/metrics.json`; as escolhas, em `docs/modelo.md`.
+
+Divisão temporal: **treino** com as 533.083 altas de 2023 (436.823 chaves) e **teste** com as 430.684 altas de 2024 até 01/10/2024 (357.355 chaves). 39.435 chaves têm altas nos dois anos, como teriam em uso. A validação cruzada usa 50% das chaves do treino (266.536 episódios), em 5 folds agrupados pela chave.
+
+Validação cruzada no treino (5 folds, média ± desvio):
+
+| Modelo | ROC-AUC | PR-AUC |
+| --- | --- | --- |
+| Logistic Regression | 0,800 ± 0,002 | 0,447 ± 0,014 |
+| Random Forest | 0,814 ± 0,003 | 0,487 ± 0,014 |
+| **XGBoost (vencedor)** | **0,837 ± 0,002** | **0,533 ± 0,013** |
+
+Teste (XGBoost, avaliado uma vez):
+
+| Métrica | Valor |
+| --- | --- |
+| ROC-AUC | 0,839 |
+| PR-AUC | 0,555 (prevalência 0,120) |
+| Brier | 0,075 |
+| Limiar (máx. F1 out-of-fold) | 0,260 |
+| Precisão / recall / F1 no limiar | 0,515 / 0,513 / 0,514 |
+| Matriz de confusão `[[VN, FP], [FN, VP]]` | `[[354367, 24825], [25098, 26394]]` |
+| Calibração (dez faixas do previsto) | maior diferença entre previsto e observado: 0,7 ponto percentual |
+
+Por grupo, no mesmo limiar:
+
+| Grupo | Episódios | Prevalência | ROC-AUC | PR-AUC | Precisão | Recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `cep_generico` = não | 237.050 | 0,136 | 0,857 | 0,618 | 0,538 | 0,594 |
+| `cep_generico` = sim | 193.634 | 0,099 | 0,807 | 0,438 | 0,463 | 0,377 |
+| `historico_completo` = sim | 424.949 | 0,119 | 0,839 | 0,555 | 0,516 | 0,512 |
+| `historico_completo` = não (entrada em 2023) | 5.735 | 0,161 | 0,807 | 0,546 | 0,469 | 0,521 |
+| `chave_colidente` = não | 422.850 | 0,118 | 0,840 | 0,554 | 0,515 | 0,513 |
+| `chave_colidente` = sim | 7.834 | 0,210 | 0,796 | 0,593 | 0,534 | 0,493 |
+| caráter eletivo (01) | 140.683 | 0,149 | 0,902 | 0,723 | 0,583 | 0,729 |
+| caráter urgência (02) | 288.342 | 0,106 | 0,791 | 0,414 | 0,444 | 0,365 |
+
+- **CEP genérico (D01, condição 2).** O modelo vai pior nesse grupo (ROC-AUC 0,807 contra 0,857). É o esperado: com o CEP geral da cidade, a chave junta mais pessoas, o histórico da chave mistura gente e parte das readmissões reais some (a taxa é menor, 9,9% contra 13,6%).
+- **Histórico incompleto em 2023.** No treino, nenhuma entrada tem os 365 dias de histórico nos dados (média de `episodios_365d` 0,44, contra 0,78 no teste). Mesmo assim, o modelo vai bem no teste, que tem histórico completo (0,839), e segue calibrado. Treinar só com as entradas a partir de 01/07/2023 (266.921 episódios, com ao menos 181 dias de histórico) não melhora o teste: ROC-AUC 0,838. Não dá para treinar só com `historico_completo = true` em 2023, porque esse grupo não existe no ano. Os 5.735 episódios de 2024 com entrada em 2023 vão um pouco pior (0,807).
+
+Importância por permutação (queda de ROC-AUC no teste, 50 mil episódios): `grupo_sigtap` 0,062, `cnes_alta` 0,045, `capitulo_cid` 0,026, `dias_permanencia` 0,022, `idade` 0,016, `episodios_365d` 0,013; os demais ficam abaixo de 0,01 (`reports/importancia_atributos.csv`).
+
+> **ROC-AUC acima de 0,80 é tratado como suspeita de vazamento e investigado.** O teste deu 0,839, então a suspeita vale para este resultado. O que foi checado (`investigacao_vazamento` em `reports/metrics.json`):
+>
+> - **Nenhum atributo sozinho explica o resultado.** O melhor atributo isolado no teste é `episodios_365d`, com ROC-AUC 0,698. Um vazamento direto (um campo que carrega o rótulo) costuma aparecer aqui com AUC perto de 1.
+> - **Nenhum grupo de atributos carrega o resultado sozinho.** Sem o histórico da chave, o teste vai a 0,827; sem o hospital da alta, a 0,822.
+> - **Os atributos só usam o passado.** O histórico só conta episódios que terminaram até a entrada (S09); `chave_colidente` e `episodio_sobreposto`, que podem olhar o futuro, ficaram fora; o teste é de um ano posterior ao treino; e nenhuma chave aparece em dois folds.
+> - **Readmissões em 0–1 dia.** São 23% dos positivos do teste (11.843): a AIH seguinte começou no dia da alta ou no seguinte, muitas vezes no mesmo hospital (D03, pendente). Sem elas, o teste fica em 0,831.
+> - **O sinal se concentra nas internações eletivas** (0,902, contra 0,791 nas de urgência) e, pela permutação, no tipo de procedimento, no hospital e no capítulo da CID. A explicação provável é que o rótulo inclui readmissões **programadas** (ciclos de tratamento, procedimentos em etapas, AIHs sucessivas), que são fáceis de prever pelo procedimento e pelo hospital. Isso não é vazamento de dado futuro, mas infla a métrica em relação à pergunta clínica (volta não planejada). A S10 não separa readmissões programadas: fica como próximo passo, junto com a D03.
+>
+> Conclusão: não foi achado vazamento de informação posterior à alta. O número continua sob a ressalva de que boa parte do sinal vem de readmissões programadas e contíguas, e não deve ser comparado com os 0,64–0,68 do Health-Project nem com modelos de readmissão não planejada.

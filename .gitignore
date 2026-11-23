@@ -16,7 +16,10 @@ data/*
 
 # Artefatos
 models/
-reports/
+# reports/: só agregados vão para o git (S10); nada por episódio
+reports/*
+!reports/metrics.json
+!reports/importancia_atributos.csv
 artifacts/
 build/
 dist/

@@ -1,0 +1,536 @@
+{
+  "modelo_vencedor": "XGBoost",
+  "divisao": "treino = altas de 2023; teste = altas de 2024 até 01/10/2024 (corte de censura da D01)",
+  "validacao_cruzada": "5 folds agrupados por chave (chaves embaralhadas, uma chave num fold só), em 50% das chaves do treino (amostra de chaves inteiras)",
+  "selecao": "maior ROC-AUC média na validação cruzada",
+  "limiar_selecao": "máximo F1 nas probabilidades out-of-fold do vencedor",
+  "random_state": 42,
+  "atributos": [
+    "idade",
+    "dias_permanencia",
+    "dias_uti",
+    "n_aihs",
+    "n_hospitais",
+    "episodios_365d",
+    "dias_internado_365d",
+    "dias_desde_ultima_alta",
+    "usou_uti",
+    "houve_transferencia",
+    "houve_permanencia",
+    "houve_contigua_sem_motivo",
+    "cep_generico",
+    "historico_com_obito",
+    "sexo",
+    "capitulo_cid",
+    "grupo_sigtap",
+    "car_int",
+    "cnes_alta"
+  ],
+  "colunas_fora": {
+    "episodio_id": "identificador",
+    "chave": "identificador; agrupa a validação cruzada",
+    "dt_inter": "data; separa treino e teste",
+    "dt_saida": "data; separa treino e teste",
+    "readmissao_30d": "alvo",
+    "ano_alta": "constante dentro do treino e dentro do teste",
+    "historico_completo": "constante (falso) em todo o treino; avaliada em separado",
+    "chave_colidente": "usa episódios posteriores da chave (futuro); avaliada em separado",
+    "episodio_sobreposto": "pode depender de um episódio que termina depois da alta"
+  },
+  "treino_episodios": 533083,
+  "treino_chaves": 436823,
+  "teste_episodios": 430684,
+  "teste_chaves": 357355,
+  "chaves_em_treino_e_teste": 39435,
+  "cv_episodios": 266536,
+  "cv_chaves": 218412,
+  "cv": {
+    "LogisticRegression": {
+      "roc_auc_media": 0.7999113433079558,
+      "roc_auc_desvio": 0.0016878182636131758,
+      "pr_auc_media": 0.446958530610424,
+      "pr_auc_desvio": 0.014192603431562228,
+      "segundos": 80.4
+    },
+    "RandomForest": {
+      "roc_auc_media": 0.8137389238777277,
+      "roc_auc_desvio": 0.0028657958142863,
+      "pr_auc_media": 0.4865553428109054,
+      "pr_auc_desvio": 0.014351032977103084,
+      "segundos": 215.9
+    },
+    "XGBoost": {
+      "roc_auc_media": 0.8369032638435987,
+      "roc_auc_desvio": 0.002026683650437202,
+      "pr_auc_media": 0.533255446172811,
+      "pr_auc_desvio": 0.013099660852833829,
+      "segundos": 141.3
+    }
+  },
+  "teste": {
+    "episodios": 430684,
+    "roc_auc": 0.8390620547353562,
+    "pr_auc": 0.5548354447691992,
+    "brier": 0.07519515603780746,
+    "prevalencia": 0.1195586555339878,
+    "proba_media": 0.12169281393289566,
+    "limiar": 0.25971928238868713,
+    "precisao": 0.5153165817372459,
+    "recall": 0.512584479142391,
+    "f1": 0.513946899553115,
+    "matriz_confusao": [
+      [
+        354367,
+        24825
+      ],
+      [
+        25098,
+        26394
+      ]
+    ]
+  },
+  "teste_por_grupo": {
+    "cep_generico": {
+      "não": {
+        "episodios": 237050,
+        "roc_auc": 0.8571743532418583,
+        "pr_auc": 0.6176949650643956,
+        "brier": 0.07817280292510986,
+        "prevalencia": 0.1360430288968572,
+        "proba_media": 0.13818438351154327,
+        "limiar": 0.25971928238868713,
+        "precisao": 0.5384226064951497,
+        "recall": 0.5937858538249248,
+        "f1": 0.5647506414604654,
+        "matriz_confusao": [
+          [
+            188385,
+            16416
+          ],
+          [
+            13100,
+            19149
+          ]
+        ]
+      },
+      "sim": {
+        "episodios": 193634,
+        "roc_auc": 0.8074282619446513,
+        "pr_auc": 0.4381658557819831,
+        "brier": 0.07154985517263412,
+        "prevalencia": 0.09937820837249657,
+        "proba_media": 0.10150355100631714,
+        "limiar": 0.25971928238868713,
+        "precisao": 0.4628210042161748,
+        "recall": 0.3765005456529647,
+        "f1": 0.41522193884861164,
+        "matriz_confusao": [
+          [
+            165982,
+            8409
+          ],
+          [
+            11998,
+            7245
+          ]
+        ]
+      }
+    },
+    "historico_completo": {
+      "não": {
+        "episodios": 5735,
+        "roc_auc": 0.8065502279843141,
+        "pr_auc": 0.546068823080869,
+        "brier": 0.1025051549077034,
+        "prevalencia": 0.16076721883173495,
+        "proba_media": 0.17078930139541626,
+        "limiar": 0.25971928238868713,
+        "precisao": 0.46920821114369504,
+        "recall": 0.5206073752711496,
+        "f1": 0.493573264781491,
+        "matriz_confusao": [
+          [
+            4270,
+            543
+          ],
+          [
+            442,
+            480
+          ]
+        ]
+      },
+      "sim": {
+        "episodios": 424949,
+        "roc_auc": 0.8393321473640951,
+        "pr_auc": 0.5549621931059422,
+        "brier": 0.07482658326625824,
+        "prevalencia": 0.11900251559598916,
+        "proba_media": 0.12103021889925003,
+        "limiar": 0.25971928238868713,
+        "precisao": 0.5162562754004303,
+        "recall": 0.5124382044690527,
+        "f1": 0.5143401544171645,
+        "matriz_confusao": [
+          [
+            350097,
+            24282
+          ],
+          [
+            24656,
+            25914
+          ]
+        ]
+      }
+    },
+    "chave_colidente": {
+      "não": {
+        "episodios": 422850,
+        "roc_auc": 0.8396501395738856,
+        "pr_auc": 0.5538868816737711,
+        "brier": 0.07422968000173569,
+        "prevalencia": 0.11788577509755233,
+        "proba_media": 0.12082819640636444,
+        "limiar": 0.25971928238868713,
+        "precisao": 0.5147582543610792,
+        "recall": 0.5132402503610978,
+        "f1": 0.513998131573396,
+        "matriz_confusao": [
+          [
+            348885,
+            24117
+          ],
+          [
+            24264,
+            25584
+          ]
+        ]
+      },
+      "sim": {
+        "episodios": 7834,
+        "roc_auc": 0.796153143167105,
+        "pr_auc": 0.5929350184842829,
+        "brier": 0.1273074895143509,
+        "prevalencia": 0.20985448046974725,
+        "proba_media": 0.16836142539978027,
+        "limiar": 0.25971928238868713,
+        "precisao": 0.5335968379446641,
+        "recall": 0.4927007299270073,
+        "f1": 0.5123339658444023,
+        "matriz_confusao": [
+          [
+            5482,
+            708
+          ],
+          [
+            834,
+            810
+          ]
+        ]
+      }
+    },
+    "car_int": {
+      "01": {
+        "episodios": 140683,
+        "roc_auc": 0.9021374393430809,
+        "pr_auc": 0.7229506813006152,
+        "brier": 0.07030463963747025,
+        "prevalencia": 0.1489590071295039,
+        "proba_media": 0.14774446189403534,
+        "limiar": 0.25971928238868713,
+        "precisao": 0.5833206048571865,
+        "recall": 0.7289559076159573,
+        "f1": 0.6480570167995927,
+        "matriz_confusao": [
+          [
+            108815,
+            10912
+          ],
+          [
+            5680,
+            15276
+          ]
+        ]
+      },
+      "02": {
+        "episodios": 288342,
+        "roc_auc": 0.7907400556484565,
+        "pr_auc": 0.413911625708645,
+        "brier": 0.07764909416437149,
+        "prevalencia": 0.10550665529128604,
+        "proba_media": 0.10927259922027588,
+        "limiar": 0.25971928238868713,
+        "precisao": 0.44418251558254757,
+        "recall": 0.36542633620406284,
+        "f1": 0.4009738503155996,
+        "matriz_confusao": [
+          [
+            244009,
+            13911
+          ],
+          [
+            19305,
+            11117
+          ]
+        ]
+      },
+      "05": {
+        "episodios": 1243,
+        "roc_auc": 0.5749177263256284,
+        "pr_auc": 0.09556484203591148,
+        "brier": 0.06635676324367523,
+        "prevalencia": 0.07160096540627514,
+        "proba_media": 0.0735778883099556,
+        "limiar": 0.25971928238868713,
+        "precisao": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "matriz_confusao": [
+          [
+            1152,
+            2
+          ],
+          [
+            89,
+            0
+          ]
+        ]
+      },
+      "06": {
+        "episodios": 416,
+        "roc_auc": 0.6684398976982097,
+        "pr_auc": 0.17120435756371957,
+        "brier": 0.054571859538555145,
+        "prevalencia": 0.06009615384615385,
+        "proba_media": 0.06412722915410995,
+        "limiar": 0.25971928238868713,
+        "precisao": 1.0,
+        "recall": 0.04,
+        "f1": 0.07692307692307693,
+        "matriz_confusao": [
+          [
+            391,
+            0
+          ],
+          [
+            24,
+            1
+          ]
+        ]
+      }
+    }
+  },
+  "calibracao_teste": {
+    "faixas": [
+      {
+        "episodios": 43069,
+        "proba_min": 0.0024470726493746042,
+        "proba_max": 0.01816544681787491,
+        "previsto_medio": 0.013929583132266998,
+        "observado": 0.013536418305509763
+      },
+      {
+        "episodios": 43069,
+        "proba_min": 0.018165603280067444,
+        "proba_max": 0.025457654148340225,
+        "previsto_medio": 0.021730072796344757,
+        "observado": 0.02071095219299264
+      },
+      {
+        "episodios": 43069,
+        "proba_min": 0.025457654148340225,
+        "proba_max": 0.03379622474312782,
+        "previsto_medio": 0.029585735872387886,
+        "observado": 0.027746174742854488
+      },
+      {
+        "episodios": 43069,
+        "proba_min": 0.033796247094869614,
+        "proba_max": 0.04310076683759689,
+        "previsto_medio": 0.03813739866018295,
+        "observado": 0.03522254986184959
+      },
+      {
+        "episodios": 43068,
+        "proba_min": 0.04310076683759689,
+        "proba_max": 0.0570705346763134,
+        "previsto_medio": 0.04946793243288994,
+        "observado": 0.045718398811182316
+      },
+      {
+        "episodios": 43068,
+        "proba_min": 0.05707067623734474,
+        "proba_max": 0.07839790731668472,
+        "previsto_medio": 0.06718803942203522,
+        "observado": 0.0634577876845918
+      },
+      {
+        "episodios": 43068,
+        "proba_min": 0.07839890569448471,
+        "proba_max": 0.10551653802394867,
+        "previsto_medio": 0.09129279851913452,
+        "observado": 0.08409956348100678
+      },
+      {
+        "episodios": 43068,
+        "proba_min": 0.10551730543375015,
+        "proba_max": 0.15575958788394928,
+        "previsto_medio": 0.1266384720802307,
+        "observado": 0.123943531160026
+      },
+      {
+        "episodios": 43068,
+        "proba_min": 0.15575958788394928,
+        "proba_max": 0.3059637248516083,
+        "previsto_medio": 0.2151714414358139,
+        "observado": 0.22111544534224947
+      },
+      {
+        "episodios": 43068,
+        "proba_min": 0.30597203969955444,
+        "proba_max": 0.9918197393417358,
+        "previsto_medio": 0.5637956261634827,
+        "observado": 0.5600445806631373
+      }
+    ],
+    "maior_diferenca": 0.007193235038127743,
+    "diferenca_media_ponderada": 0.0033229540643378713
+  },
+  "historico_treino": {
+    "episodios": 533083,
+    "historico_completo": 0.0,
+    "com_episodio_365d": 0.18008452717494275,
+    "media_episodios_365d": 0.44384270366903467,
+    "media_dias_internado_365d": 2.2928755934816905,
+    "sem_episodio_anterior": 0.8198254305614698,
+    "readmissao_30d": 0.11634023219648723
+  },
+  "historico_teste": {
+    "episodios": 430684,
+    "historico_completo": 0.9866839724716961,
+    "com_episodio_365d": 0.23711352174680275,
+    "media_episodios_365d": 0.7763278877320727,
+    "media_dias_internado_365d": 3.358053700625052,
+    "sem_episodio_anterior": 0.7411327098290161,
+    "readmissao_30d": 0.1195586555339878
+  },
+  "importancia_episodios": 50000,
+  "variante_historico": {
+    "descricao": "vencedor treinado só com entradas a partir de 01/07/2023, com o limiar do modelo principal",
+    "treino_episodios": 266921,
+    "teste": {
+      "episodios": 430684,
+      "roc_auc": 0.8376716660717315,
+      "pr_auc": 0.5526426812190762,
+      "brier": 0.07539670169353485,
+      "prevalencia": 0.1195586555339878,
+      "proba_media": 0.11678149551153183,
+      "limiar": 0.25971928238868713,
+      "precisao": 0.5280729939034438,
+      "recall": 0.4979220073021052,
+      "f1": 0.5125544760305466,
+      "matriz_confusao": [
+        [
+          356279,
+          22913
+        ],
+        [
+          25853,
+          25639
+        ]
+      ]
+    },
+    "teste_por_grupo": {
+      "historico_completo": {
+        "não": {
+          "episodios": 5735,
+          "roc_auc": 0.7993290721577002,
+          "pr_auc": 0.5362003956574142,
+          "brier": 0.10369152575731277,
+          "prevalencia": 0.16076721883173495,
+          "proba_media": 0.1666889786720276,
+          "limiar": 0.25971928238868713,
+          "precisao": 0.4623015873015873,
+          "recall": 0.5054229934924078,
+          "f1": 0.48290155440414506,
+          "matriz_confusao": [
+            [
+              4271,
+              542
+            ],
+            [
+              456,
+              466
+            ]
+          ]
+        },
+        "sim": {
+          "episodios": 424949,
+          "roc_auc": 0.8379900770543862,
+          "pr_auc": 0.5528932519447045,
+          "brier": 0.07501483708620071,
+          "prevalencia": 0.11900251559598916,
+          "proba_media": 0.11610795557498932,
+          "limiar": 0.25971928238868713,
+          "precisao": 0.529467440686522,
+          "recall": 0.4977852481708523,
+          "f1": 0.5131377785025583,
+          "matriz_confusao": [
+            [
+              352008,
+              22371
+            ],
+            [
+              25397,
+              25173
+            ]
+          ]
+        }
+      }
+    }
+  },
+  "investigacao_vazamento": {
+    "auc_univariada_teste": {
+      "episodios_365d": 0.6977197173100191,
+      "dias_desde_ultima_alta": 0.6928098397363877,
+      "dias_internado_365d": 0.6377392715947162,
+      "idade": 0.5603919033415813,
+      "cep_generico": 0.5430965214768048,
+      "dias_uti": 0.535396246520096,
+      "usou_uti": 0.5345433479962457,
+      "n_aihs": 0.5131091773248946,
+      "dias_permanencia": 0.5101220470729171,
+      "houve_permanencia": 0.5098289289627925,
+      "houve_transferencia": 0.5042612468907238,
+      "n_hospitais": 0.5038808444753057,
+      "historico_com_obito": 0.500756250752181,
+      "houve_contigua_sem_motivo": 0.5
+    },
+    "teste_sem_readmissao_0_1_dia": {
+      "positivos_removidos": 11843,
+      "parcela_dos_positivos": 0.22999689272119941,
+      "roc_auc": 0.8305581003158302,
+      "pr_auc": 0.5069842747759757,
+      "prevalencia": 0.09466360743098216
+    },
+    "ablacoes_teste": {
+      "sem_historico": {
+        "colunas": [
+          "episodios_365d",
+          "dias_internado_365d",
+          "dias_desde_ultima_alta",
+          "historico_com_obito"
+        ],
+        "roc_auc": 0.8266054747563122,
+        "pr_auc": 0.5174344805916838
+      },
+      "sem_cnes_alta": {
+        "colunas": [
+          "cnes_alta"
+        ],
+        "roc_auc": 0.8217756622848473,
+        "pr_auc": 0.5321517546981614
+      }
+    }
+  },
+  "segundos_total": 603.5
+}

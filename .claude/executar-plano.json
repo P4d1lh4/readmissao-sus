@@ -1,0 +1,13 @@
+{
+  "ordem": "planilha",
+  "planilha": {
+    "arquivo": "docs/acompanhamento.xlsx",
+    "aba": "Histórias",
+    "colunas": { "id": "ID", "titulo": "História", "status": "Status", "criterio": "Critério de aceite", "depende": "Depende de", "descricao": "Descrição", "commit": "Commit", "observacoes": "Observações" },
+    "pendente": ["A fazer"],
+    "feito": "Feito — aguardando revisão",
+    "bloqueado": "Bloqueado"
+  },
+  "verificacoes": [".venv\Scripts\python -m pytest -q"],
+  "notas": "Dados do SIH nunca vão para o git (só agregados). Sem push. Downloads liberados: FTP DATASUS, pip, validador HL7 do GitHub, imagem Docker Java, pacotes FHIR RNDS/BR Core/SES-GO. Windows: usar pyreaddbc em vez de PySUS; validador HL7 roda em Docker."
+}

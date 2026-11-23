@@ -1,0 +1,23 @@
+# Ambiente
+.venv/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Dados do SIH/SUS nunca vão para o git
+data/*
+!data/.gitkeep
+*.dbc
+*.dbf
+*.parquet
+*.duckdb
+*.duckdb.wal
+
+# Artefatos
+models/
+reports/
+artifacts/
+build/
+dist/
+*.egg-info/

@@ -5,7 +5,8 @@ Fontes (FTP público do DATASUS, consultadas em 23/11/2026):
   (ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Doc/IT_SIHSUS_1603.pdf).
 - Códigos: tabelas de conversão do TabWin em TAB_SIH.zip
   (ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Auxiliar/TAB_SIH.zip),
-  arquivo RD2008.DEF e CNV/IDENT.CNV, CNV/MORTES.CNV, CNV/SAIDAPERM.CNV, CNV/CARATEND.CNV.
+  arquivo RD2008.DEF e CNV/IDENT.CNV, CNV/MORTES.CNV, CNV/SAIDAPERM.CNV, CNV/CARATEND.CNV,
+  CNV/SEXO.CNV, CNV/IDADEDET.CNV, CNV/CID10CAP.CNV e DBF/TB_GRUPO.DBF (S09).
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ FONTE_LAYOUT = (
 FONTE_CODIGOS = (
     "Tabelas do TabWin para o SIH: "
     "ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Auxiliar/TAB_SIH.zip "
-    "(RD2008.DEF e CNV/IDENT.CNV, CNV/MORTES.CNV, CNV/SAIDAPERM.CNV, CNV/CARATEND.CNV)"
+    "(RD2008.DEF e CNV/IDENT.CNV, CNV/MORTES.CNV, CNV/SAIDAPERM.CNV, CNV/CARATEND.CNV, CNV/SEXO.CNV, CNV/IDADEDET.CNV, CNV/CID10CAP.CNV, "
+    "DBF/TB_GRUPO.DBF)"
 )
 
 # CNV/IDENT.CNV — "Tipo de AIH". Qualquer outro dígito o TabWin agrupa como "Outras/ignorado".
@@ -80,6 +82,65 @@ CAR_INT = {
     "04": "Acidente no trajeto para o trabalho",
     "05": "Outros tipos de acidente de trânsito",
     "06": "Outros tipos de lesões e envenenamentos por agentes químicos ou físicos",
+}
+
+# CNV/SEXO.CNV — "Sexo": 1 = masculino; 2 e 3 = feminino; o resto, ignorado.
+SEXO = {
+    "1": "M",
+    "2": "F",
+    "3": "F",
+}
+
+# CNV/IDADEDET.CNV — COD_IDADE + IDADE (3 dígitos): 2xx = dias, 3xx = meses, 4xx = anos,
+# 5xx = 100 + xx anos; 000 e 999 = idade inválida.
+COD_IDADE = {
+    "2": "dias",
+    "3": "meses",
+    "4": "anos",
+    "5": "centenas de anos (100 + IDADE)",
+}
+
+# CNV/CID10CAP.CNV — capítulos da CID-10 pela faixa da categoria (3 primeiros caracteres).
+# (número, romano, nome, primeira categoria, última categoria). U00–U03 não tem capítulo no CNV.
+CID10_CAPITULOS = (
+    (1, "I", "Algumas doenças infecciosas e parasitárias", "A00", "B99"),
+    (2, "II", "Neoplasias (tumores)", "C00", "D48"),
+    (3, "III", "Doenças do sangue, órgãos hematopoéticos e transtornos imunitários", "D50", "D89"),
+    (4, "IV", "Doenças endócrinas, nutricionais e metabólicas", "E00", "E90"),
+    (5, "V", "Transtornos mentais e comportamentais", "F00", "F99"),
+    (6, "VI", "Doenças do sistema nervoso", "G00", "G99"),
+    (7, "VII", "Doenças do olho e anexos", "H00", "H59"),
+    (8, "VIII", "Doenças do ouvido e da apófise mastoide", "H60", "H95"),
+    (9, "IX", "Doenças do aparelho circulatório", "I00", "I99"),
+    (10, "X", "Doenças do aparelho respiratório", "J00", "J99"),
+    (11, "XI", "Doenças do aparelho digestivo", "K00", "K93"),
+    (12, "XII", "Doenças da pele e do tecido subcutâneo", "L00", "L99"),
+    (13, "XIII", "Doenças do sistema osteomuscular e do tecido conjuntivo", "M00", "M99"),
+    (14, "XIV", "Doenças do aparelho geniturinário", "N00", "N99"),
+    (15, "XV", "Gravidez, parto e puerpério", "O00", "O99"),
+    (16, "XVI", "Algumas afecções originadas no período perinatal", "P00", "P96"),
+    (17, "XVII", "Malformações congênitas, deformidades e anomalias cromossômicas", "Q00", "Q99"),
+    (18, "XVIII", "Sintomas, sinais e achados anormais de exames clínicos e laboratoriais",
+     "R00", "R99"),
+    (19, "XIX", "Lesões, envenenamentos e outras consequências de causas externas", "S00", "T98"),
+    (20, "XX", "Causas externas de morbidade e mortalidade", "V01", "Y98"),
+    (21, "XXI", "Fatores que influenciam o estado de saúde e o contato com serviços de saúde",
+     "Z00", "Z99"),
+    (22, "XXII", "Códigos para propósitos especiais", "U04", "U99"),
+)
+
+# DBF/TB_GRUPO.DBF — grupos da Tabela SIGTAP (CO_GRUPO = 2 primeiros dígitos de PROC_REA;
+# o RD2008.DEF agrupa PROC_REA por esse campo). Competência da tabela: 202407.
+SIGTAP_GRUPOS = {
+    "01": "Ações de promoção e prevenção em saúde",
+    "02": "Procedimentos com finalidade diagnóstica",
+    "03": "Procedimentos clínicos",
+    "04": "Procedimentos cirúrgicos",
+    "05": "Transplantes de órgãos, tecidos e células",
+    "06": "Medicamentos",
+    "07": "Órteses, próteses e materiais especiais",
+    "08": "Ações complementares da atenção à saúde",
+    "09": "Procedimentos para ofertas de cuidados integrados",
 }
 
 ROTULOS = {"IDENT": IDENT, "MORTE": MORTE, "COBRANCA": COBRANCA, "CAR_INT": CAR_INT}

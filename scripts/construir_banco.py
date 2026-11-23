@@ -1,8 +1,9 @@
-"""Recria data/sih.duckdb do zero a partir dos Parquet e atualiza as contagens em docs/coorte.md.
+"""Recria data/sih.duckdb do zero a partir dos Parquet e atualiza docs/coorte.md e docs/atributos.md.
 
 Uso: .venv\\Scripts\\python scripts\\construir_banco.py [--contiguas-sem-motivo REGRA]
      [--sem-permanencia]
-Lê data/parquet/RDPE*.parquet e roda o SQL de sql/ (staging, internações, coorte, episódios).
+Lê data/parquet/RDPE*.parquet e roda o SQL de sql/ (staging, internações, coorte, episódios,
+atributos).
 O sal da chave de linkage vem da variável READMISSAO_SAL_CHAVE ou de data/sal_chave.txt
 (criado na primeira vez; fora do git). A regra dos episódios tem padrão em
 readmissao_sus.episodios.REGRA_PADRAO (D03 em docs/decisoes.md). O documento recebe só agregados.
@@ -18,7 +19,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
-from readmissao_sus import relatorio_coorte, relatorio_episodios  # noqa: E402
+from readmissao_sus import relatorio_atributos, relatorio_coorte, relatorio_episodios  # noqa: E402
 from readmissao_sus.banco import construir_banco, obter_sal  # noqa: E402
 from readmissao_sus.episodios import CONTIGUAS_SEM_MOTIVO, REGRA_PADRAO, RegraEpisodio  # noqa: E402
 
@@ -26,6 +27,7 @@ DIR_PARQUET = RAIZ / "data" / "parquet"
 BANCO = RAIZ / "data" / "sih.duckdb"
 ARQUIVO_SAL = RAIZ / "data" / "sal_chave.txt"
 DOC_COORTE = RAIZ / "docs" / "coorte.md"
+DOC_ATRIBUTOS = RAIZ / "docs" / "atributos.md"
 
 
 def ler_regra(argv: list[str] | None = None) -> RegraEpisodio:
@@ -64,9 +66,11 @@ def main() -> int:
     for modulo, bloco in blocos:
         modulo.gravar_bloco(DOC_COORTE, bloco)
         print(bloco, end="\n\n")
+    bloco_atributos = relatorio_atributos.gerar_bloco(construcao.atributos, regra, hoje)
+    relatorio_atributos.gravar_bloco(DOC_ATRIBUTOS, bloco_atributos)
     print(f"Banco recriado em {BANCO.relative_to(RAIZ)} a partir de {len(arquivos)} arquivos.")
     print(f"Regra dos episódios: {regra.descricao}.")
-    print(f"Blocos gravados em {DOC_COORTE.relative_to(RAIZ)}")
+    print(f"Blocos gravados em {DOC_COORTE.relative_to(RAIZ)} e {DOC_ATRIBUTOS.relative_to(RAIZ)}")
     return 0
 
 

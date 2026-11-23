@@ -69,6 +69,8 @@ Para recriar do zero o banco DuckDB `data/sih.duckdb` (staging tipado, internaç
 
 Leva cerca de 5 minutos. O banco junta em episódios as internações contíguas após transferência ou permanência (S07); a regra para alta seguida de nova AIH no mesmo dia ou no seguinte aguarda decisão (D03 em `docs/decisoes.md`) e muda com `--contiguas-sem-motivo nenhuma|mesmo_hospital|todas` (padrão `nenhuma`). O banco guarda a chave de linkage como SHA-256 com sal; o sal vem de `READMISSAO_SAL_CHAVE` ou de `data/sal_chave.txt` (criado na primeira vez). Banco, sal e chave ficam em `data/`, fora do git. Filtros, marcas e o motivo do sal estão em `docs/coorte.md`.
 
+O mesmo comando monta a tabela `atributo_episodio` (S09, `sql/06_atributos.sql`): uma linha por episódio elegível, com o alvo `readmissao_30d`, os atributos do paciente e do episódio e o histórico da mesma chave nos 365 dias antes da entrada, sem vazamento. As definições, as fontes dos códigos (capítulo da CID-10, grupo SIGTAP) e as contagens agregadas por atributo ficam em `docs/atributos.md`.
+
 Para baixar os pacotes FHIR do Sumário de Alta para `fhir/pacotes/` (versão e SHA-256 fixos; rodar de novo não baixa nada):
 
 ```powershell

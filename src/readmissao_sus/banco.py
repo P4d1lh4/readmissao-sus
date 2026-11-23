@@ -1,4 +1,4 @@
-"""Banco DuckDB do SIH-RD (histórias S06 e S07): staging, internações, coorte e episódios.
+"""Banco DuckDB do SIH-RD (S06, S07 e S09): staging, internações, coorte, episódios e atributos.
 
 O SQL versionado em sql/ é a única fonte das regras de internação (deduplicação por N_AIH,
 IDENT = 5 como continuação, óbito), da coorte e da junção de episódios (S07, episodios.py).
@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import os
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
 import duckdb
 
 from readmissao_sus import dicionario_sih as dic
+from readmissao_sus.atributos import ResumoAtributos, ler_resumo, montar_atributos
 from readmissao_sus.cobertura import Cobertura, calcular_cobertura
 from readmissao_sus.episodios import REGRA_PADRAO, Episodios, RegraEpisodio, comparar_regras
 from readmissao_sus.sql_versionado import executar_sql
@@ -39,6 +40,7 @@ class Construcao:
     filtros: list[tuple[int, str, int, int, int]]
     detalhes: dict[str, list[tuple[str, int]]]
     episodios: Episodios | None = None
+    atributos: ResumoAtributos | None = None
 
 
 def obter_sal(arquivo: Path) -> str:
@@ -73,6 +75,15 @@ def carregar_dicionario(con: duckdb.DuckDBPyConnection) -> None:
           c in dic.COBRANCA_PERMANENCIA)
          for c, d in sorted(dic.COBRANCA.items())],
     )
+    con.execute("create or replace table dic_sexo (codigo varchar primary key, sexo varchar)")
+    con.executemany("insert into dic_sexo values (?, ?)", sorted(dic.SEXO.items()))
+    con.execute(
+        "create or replace table dic_cid10_capitulo (numero integer primary key, romano varchar, "
+        "nome varchar, inicio varchar, fim varchar)"
+    )
+    con.executemany("insert into dic_cid10_capitulo values (?, ?, ?, ?, ?)", dic.CID10_CAPITULOS)
+    con.execute("create or replace table dic_sigtap_grupo (codigo varchar primary key, nome varchar)")
+    con.executemany("insert into dic_sigtap_grupo values (?, ?)", sorted(dic.SIGTAP_GRUPOS.items()))
 
 
 def criar_fonte(con: duckdb.DuckDBPyConnection, relacao: str, completar: bool = False) -> None:
@@ -133,8 +144,9 @@ def construir_banco(
         cobertura = calcular_cobertura(con, COMPETENCIAS_IDENT1)
         montar_coorte(con, cobertura.inicio, cobertura.limite_indice)
         episodios = comparar_regras(con, regra, cobertura.inicio, cobertura.limite_indice)
+        montar_atributos(con, cobertura.inicio)
         _gravar_parametros(con, cobertura)
-        resultado = ler_construcao(con, cobertura, episodios)
+        resultado = replace(ler_construcao(con, cobertura, episodios), atributos=ler_resumo(con))
         con.execute("checkpoint")
     finally:
         con.close()

@@ -29,6 +29,9 @@ A regra das contíguas sem motivo (D03) é um parâmetro: `--contiguas-sem-motiv
 | `coorte_episodio` | `sql/04_episodio.sql` | episódio sem óbito | colunas de `episodio` mais `censurada`, `alta_antes_do_inicio`, `elegivel_indice`, `fim_sem_continuacao`, `dias_ate_readmissao` e `readmissao_30d` |
 | `episodio_resumo`, `episodio_motivos`, `contiguas_sem_motivo`, `contiguas_procedimentos` | `sql/05_episodio_contagens.sql` | item | as contagens do bloco `episodios` |
 | `episodio_parametros` | `episodios.py` | — | a regra usada (`juntar_permanencia`, `contiguas_sem_motivo`), contiguidade e janela |
+| `dic_sexo`, `dic_cid10_capitulo`, `dic_sigtap_grupo` | carregadas de `dicionario_sih.py` | código | sexo, faixas dos capítulos da CID-10 e grupos SIGTAP (S09; fontes em `docs/atributos.md`) |
+| `episodio_sobreposicao` | `sql/06_atributos.sql` | par de episódios sobrepostos da mesma chave | colisões da D01, por episódio |
+| `atributo_episodio` | `sql/06_atributos.sql` | episódio elegível | alvo, atributos do episódio e histórico da chave (S09, `docs/atributos.md`) |
 
 A `internacao` guarda também os óbitos: uma readmissão pode terminar em óbito, e a S07 precisa dela para achar a próxima internação. A `coorte` é o conjunto de altas que podem ser internação-índice.
 

@@ -144,3 +144,36 @@ SIGTAP_GRUPOS = {
 }
 
 ROTULOS = {"IDENT": IDENT, "MORTE": MORTE, "COBRANCA": COBRANCA, "CAR_INT": CAR_INT}
+
+# Readmissão programada (D04, S13). Inspirada no Planned Readmission Algorithm v4.0 do CMS
+# (Yale New Haven Health Services Corporation/CORE, medida Hospital-Wide Readmission, tabelas
+# PR1–PR4): transplante, quimioterapia de manutenção e reabilitação são sempre programados.
+# Adaptada ao SIGTAP: códigos e nomes de DBF/TB_FORMA.DBF e DBF/TB_SUBGR.DBF do TAB_SIH.zip.
+# Ficam de fora, por serem volta não planejada no SIGTAP: 030410 (tratamento clínico e
+# intercorrências do paciente oncológico), 0305 (nefrologia: na AIH, a diálise só aparece como
+# intercorrência; a de manutenção é APAC), 0506 (intercorrências pós-transplante) e 0501–0504
+# (ações do doador). Parto programado não tem código próprio: entra pelo caráter eletivo.
+FONTE_PROGRAMADA = (
+    "CMS Planned Readmission Algorithm v4.0 (Yale/YNHHSC CORE, tabelas PR1–PR4), adaptado "
+    "ao SIGTAP pelas tabelas DBF/TB_FORMA.DBF e DBF/TB_SUBGR.DBF de "
+    "ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Auxiliar/TAB_SIH.zip"
+)
+# (tipo, prefixo, descrição): o procedimento principal (PROC_REA) ou o diagnóstico principal
+# (DIAG_PRINC) da primeira AIH da volta começa com o prefixo.
+SEMPRE_PROGRAMADOS = (
+    ("procedimento", "030401", "Radioterapia"),
+    ("procedimento", "030402", "Quimioterapia paliativa - adulto"),
+    ("procedimento", "030403", "Quimioterapia para controle temporário de doença - adulto"),
+    ("procedimento", "030404", "Quimioterapia prévia (neoadjuvante/citorredutora) - adulto"),
+    ("procedimento", "030405", "Quimioterapia adjuvante (profilática) - adulto"),
+    ("procedimento", "030406", "Quimioterapia curativa - adulto"),
+    ("procedimento", "030407", "Quimioterapia de tumores de criança e adolescente"),
+    ("procedimento", "030408", "Quimioterapia - procedimentos especiais"),
+    ("procedimento", "030409", "Medicina nuclear - terapêutica oncológica (iodoterapia)"),
+    ("procedimento", "0505", "Transplante de órgãos, tecidos e células"),
+    ("cid", "Z50", "Cuidados envolvendo uso de procedimentos de reabilitação"),
+    ("cid", "Z510", "Sessão de radioterapia"),
+    ("cid", "Z511", "Sessão de quimioterapia por neoplasia"),
+    ("cid", "Z512", "Outras formas de quimioterapia"),
+)
+CAR_INT_ELETIVO = "01"

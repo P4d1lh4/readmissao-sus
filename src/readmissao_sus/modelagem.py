@@ -25,7 +25,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
 
-ALVO = "readmissao_30d"
+# Alvo da D04 (S13). O da S10, readmissao_30d, fica como coluna auxiliar.
+ALVO = "readmissao_nao_planejada_30d"
+ALVO_S10 = "readmissao_30d"
 CHAVE = "chave"
 DATA_ALTA = "dt_saida"
 ANO_TREINO = 2023
@@ -60,7 +62,8 @@ COLUNAS_FORA = {
     "chave": "identificador; agrupa a validação cruzada",
     "dt_inter": "data; separa treino e teste",
     "dt_saida": "data; separa treino e teste",
-    "readmissao_30d": "alvo",
+    "readmissao_nao_planejada_30d": "alvo (D04)",
+    "readmissao_30d": "alvo da S10; inclui as voltas programadas",
     "ano_alta": "constante dentro do treino e dentro do teste",
     "historico_completo": "constante (falso) em todo o treino; avaliada em separado",
     "chave_colidente": "usa episódios posteriores da chave (futuro); avaliada em separado",

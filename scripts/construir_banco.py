@@ -1,7 +1,7 @@
 """Recria data/sih.duckdb do zero a partir dos Parquet e atualiza docs/coorte.md e docs/atributos.md.
 
 Uso: .venv\\Scripts\\python scripts\\construir_banco.py [--contiguas-sem-motivo REGRA]
-     [--sem-permanencia]
+     [--sem-permanencia] [--eletiva-nao-programada]
 Lê data/parquet/RDPE*.parquet e roda o SQL de sql/ (staging, internações, coorte, episódios,
 atributos).
 O sal da chave de linkage vem da variável READMISSAO_SAL_CHAVE ou de data/sal_chave.txt
@@ -22,6 +22,7 @@ sys.path.insert(0, str(RAIZ / "src"))
 from readmissao_sus import relatorio_atributos, relatorio_coorte, relatorio_episodios  # noqa: E402
 from readmissao_sus.banco import construir_banco, obter_sal  # noqa: E402
 from readmissao_sus.episodios import CONTIGUAS_SEM_MOTIVO, REGRA_PADRAO, RegraEpisodio  # noqa: E402
+from readmissao_sus.programadas import RegraProgramada  # noqa: E402
 
 DIR_PARQUET = RAIZ / "data" / "parquet"
 BANCO = RAIZ / "data" / "sih.duckdb"
@@ -30,7 +31,7 @@ DOC_COORTE = RAIZ / "docs" / "coorte.md"
 DOC_ATRIBUTOS = RAIZ / "docs" / "atributos.md"
 
 
-def ler_regra(argv: list[str] | None = None) -> RegraEpisodio:
+def ler_regras(argv: list[str] | None = None) -> tuple[RegraEpisodio, RegraProgramada]:
     parser = argparse.ArgumentParser(description="Recria data/sih.duckdb a partir dos Parquet.")
     parser.add_argument(
         "--contiguas-sem-motivo", choices=CONTIGUAS_SEM_MOTIVO,
@@ -41,23 +42,29 @@ def ler_regra(argv: list[str] | None = None) -> RegraEpisodio:
         "--sem-permanencia", action="store_true",
         help="não junta a saída por permanência (COBRANCA 21–28) à AIH seguinte",
     )
+    parser.add_argument(
+        "--eletiva-nao-programada", action="store_true",
+        help="na D04, volta eletiva conta como readmissão não planejada (só a lista de "
+             "procedimentos e CIDs sempre programados sai do alvo)",
+    )
     args = parser.parse_args(argv)
-    return RegraEpisodio(
+    regra = RegraEpisodio(
         juntar_permanencia=REGRA_PADRAO.juntar_permanencia and not args.sem_permanencia,
         contiguas_sem_motivo=args.contiguas_sem_motivo,
     )
+    return regra, RegraProgramada(eletiva=not args.eletiva_nao_programada)
 
 
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
-    regra = ler_regra()
+    regra, programada = ler_regras()
     arquivos = sorted(DIR_PARQUET.glob("RDPE*.parquet"))
     if not arquivos:
         print(f"ERRO: nenhum RDPE*.parquet em {DIR_PARQUET}. Rode scripts/baixar_sih.py antes.",
               file=sys.stderr)
         return 1
-    construcao = construir_banco(BANCO, arquivos, obter_sal(ARQUIVO_SAL), regra)
+    construcao = construir_banco(BANCO, arquivos, obter_sal(ARQUIVO_SAL), regra, programada)
     hoje = date.today().strftime("%d/%m/%Y")
     blocos = [
         (relatorio_coorte, relatorio_coorte.gerar_bloco(construcao, hoje)),
@@ -70,6 +77,7 @@ def main() -> int:
     relatorio_atributos.gravar_bloco(DOC_ATRIBUTOS, bloco_atributos)
     print(f"Banco recriado em {BANCO.relative_to(RAIZ)} a partir de {len(arquivos)} arquivos.")
     print(f"Regra dos episódios: {regra.descricao}.")
+    print(f"Volta eletiva conta como programada (D04): {'sim' if programada.eletiva else 'não'}.")
     print(f"Blocos gravados em {DOC_COORTE.relative_to(RAIZ)} e {DOC_ATRIBUTOS.relative_to(RAIZ)}")
     return 0
 

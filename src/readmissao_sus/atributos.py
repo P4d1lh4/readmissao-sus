@@ -49,7 +49,10 @@ GRUPOS = {codigo: f"{codigo} {nome}" for codigo, nome in dic.SIGTAP_GRUPOS.items
 CARATER = {codigo: f"{codigo} {nome}" for codigo, nome in dic.CAR_INT.items()}
 
 ATRIBUTOS = (
-    _sim_nao("readmissao_30d", "Alvo: novo episódio da mesma chave em até 30 dias após a alta"),
+    _sim_nao("readmissao_30d",
+             "Alvo da S10 (auxiliar): novo episódio da mesma chave em até 30 dias após a alta"),
+    _sim_nao("readmissao_nao_planejada_30d",
+             "Alvo (D04): como readmissao_30d, mas só com voltas não programadas"),
     Atributo("idade", "Idade em anos na entrada (COD_IDADE em dias ou meses vira 0)",
              cortes=(0, 1, 5, 15, 50, 65, 80), rotulo_nulo="idade inválida"),
     Atributo("sexo", "Sexo (1 = M; 2 e 3 = F)", rotulo_nulo="ignorado"),
@@ -90,10 +93,15 @@ class Faixa:
     rotulo: str
     episodios: int
     readmitidos: int
+    nao_planejados: int = 0
 
     @property
     def taxa(self) -> float:
         return self.readmitidos / self.episodios if self.episodios else 0.0
+
+    @property
+    def taxa_nao_planejada(self) -> float:
+        return self.nao_planejados / self.episodios if self.episodios else 0.0
 
 
 @dataclass(frozen=True)
@@ -107,6 +115,7 @@ class Coluna:
 class ResumoAtributos:
     episodios: int
     readmitidos: int
+    nao_planejados: int
     colunas: list[Coluna]
     faixas: dict[str, list[Faixa]]
     historico: list[tuple]
@@ -123,12 +132,14 @@ def montar_atributos(con: duckdb.DuckDBPyConnection, inicio_dados: date) -> None
 
 
 def ler_resumo(con: duckdb.DuckDBPyConnection) -> ResumoAtributos:
-    episodios, readmitidos = con.execute(
-        f"select count(*), count(*) filter (where readmissao_30d) from {TABELA}"
+    episodios, readmitidos, nao_planejados = con.execute(
+        f"select count(*), count(*) filter (where readmissao_30d), "
+        f"count(*) filter (where readmissao_nao_planejada_30d) from {TABELA}"
     ).fetchone()
     return ResumoAtributos(
         episodios=episodios,
         readmitidos=readmitidos,
+        nao_planejados=nao_planejados,
         colunas=_colunas(con),
         faixas={a.coluna: _faixas(con, a) for a in ATRIBUTOS},
         historico=_historico(con),
@@ -161,18 +172,20 @@ def _faixas(con: duckdb.DuckDBPyConnection, atributo: Atributo) -> list[Faixa]:
     rotulo = faixa_sql(coluna, atributo.cortes) if atributo.cortes else f"{coluna}::varchar"
     linhas = con.execute(
         f"""
-        select {rotulo} as faixa, min({coluna}) as ordem, count(*), count(*) filter (where readmissao_30d)
+        select {rotulo} as faixa, min({coluna}) as ordem, count(*),
+               count(*) filter (where readmissao_30d),
+               count(*) filter (where readmissao_nao_planejada_30d)
         from {TABELA} group by 1
         """
     ).fetchall()
-    nulas = [Faixa(atributo.rotulo_nulo, n, r) for faixa, _, n, r in linhas if faixa is None]
-    validas = [(faixa, ordem, n, r) for faixa, ordem, n, r in linhas if faixa is not None]
+    nulas = [Faixa(atributo.rotulo_nulo, n, r, np) for faixa, _, n, r, np in linhas if faixa is None]
+    validas = [(faixa, ordem, n, r, np) for faixa, ordem, n, r, np in linhas if faixa is not None]
     if atributo.cortes or not atributo.por_volume:
         # Em ordem de valor; nas colunas sim/não, "sim" primeiro.
         validas.sort(key=lambda x: (x[1] is False, x[1]))
     else:
         validas.sort(key=lambda x: (-x[2], x[0]))
-    faixas = [Faixa(atributo.rotulos.get(f, f), n, r) for f, _, n, r in validas]
+    faixas = [Faixa(atributo.rotulos.get(f, f), n, r, np) for f, _, n, r, np in validas]
     return _agrupar_cauda(faixas, atributo.max_categorias) + nulas
 
 
@@ -181,7 +194,7 @@ def _agrupar_cauda(faixas: list[Faixa], maximo: int) -> list[Faixa]:
         return faixas
     cauda = faixas[maximo:]
     outras = Faixa(f"outras {len(cauda)} categorias", sum(f.episodios for f in cauda),
-                   sum(f.readmitidos for f in cauda))
+                   sum(f.readmitidos for f in cauda), sum(f.nao_planejados for f in cauda))
     return faixas[:maximo] + [outras]
 
 

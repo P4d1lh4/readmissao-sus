@@ -140,6 +140,20 @@ select * from (
     union all
     select 'readmissao', 5, '… em 8–30 dias', (select count(*) from coorte_episodio where readmissao_30d and dias_ate_readmissao >= 8)
     union all
+    select 'readmissao', 6, 'Readmitidas em 30 dias sem as voltas programadas (D04)', (select count(*) from coorte_episodio where readmissao_nao_planejada_30d)
+    union all
+    select 'readmissao', 7, 'Readmitidas com a primeira volta programada', (select count(*) from coorte_episodio where readmissao_30d and primeira_volta_programada)
+    union all
+    select 'readmissao', 8, '… programada por caráter eletivo', (select count(*) from coorte_episodio where readmissao_30d and primeira_volta_eletiva)
+    union all
+    select 'readmissao', 9, '… por procedimento sempre programado', (select count(*) from coorte_episodio where readmissao_30d and primeira_volta_procedimento_programado)
+    union all
+    select 'readmissao', 10, '… por diagnóstico sempre programado', (select count(*) from coorte_episodio where readmissao_30d and primeira_volta_cid_programado)
+    union all
+    select 'readmissao', 11, '… e com volta não planejada depois, ainda em 30 dias (continuam no alvo)', (select count(*) from coorte_episodio where readmissao_30d and primeira_volta_programada and readmissao_nao_planejada_30d)
+    union all
+    select 'readmissao', 12, 'Reclassificadas: readmitidas que saem do alvo (só voltas programadas)', (select count(*) from coorte_episodio where readmissao_30d and not readmissao_nao_planejada_30d)
+    union all
     select 'juncao', 11, 'Contíguas sem motivo com saída anterior no período das altas-índice (D01: 27.916)',
            (select count(*) from episodio_candidato
             where tipo = 'sem_motivo' and primeira

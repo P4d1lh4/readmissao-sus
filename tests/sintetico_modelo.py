@@ -32,7 +32,8 @@ def episodios_sinteticos(n: int, seed: int = 0) -> pd.DataFrame:
         {
             "episodio_id": [f"E{i:06d}" for i in range(n)],
             "chave": [f"K{k:05d}" for k in rng.integers(0, max(n // 3, 1), n)],
-            "readmissao_30d": readmissao,
+            "readmissao_nao_planejada_30d": readmissao,
+            "readmissao_30d": readmissao | (rng.random(n) < 0.05),
             "idade": idade,
             "sexo": rng.choice(["F", "M"], n),
             "capitulo_cid": rng.choice(["IX", "XV", "II", "X"], n),

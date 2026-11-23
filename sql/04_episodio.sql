@@ -5,7 +5,10 @@
 --   contiguas_sem_motivo  VARCHAR  'nenhuma' | 'mesmo_hospital' | 'todas' (D03 em docs/decisoes.md);
 --   dias_contiguidade     INTEGER  1: a nova AIH começa no dia da saída ou no seguinte;
 --   janela_dias           INTEGER  30: janela da readmissão;
---   inicio_indice, corte_indice DATE: as mesmas da coorte (03_coorte.sql).
+--   inicio_indice, corte_indice DATE: as mesmas da coorte (03_coorte.sql);
+--   eletiva_programada    BOOLEAN  volta eletiva é programada (D04);
+--   car_int_eletivo       VARCHAR  '01';
+-- e dic_sempre_programado (programadas.py): prefixos de procedimento e de CID sempre programados.
 --
 -- Candidata A → B: mesma chave, A sem óbito, B começa entre a saída de A e dias_contiguidade
 -- dias depois e vem depois de A na ordem (dt_inter, dt_saida, n_aih), a mesma da D01. B que
@@ -120,10 +123,25 @@ select
 from episodio_membro m join internacao i using (n_aih)
 group by m.episodio_id;
 
+-- Volta programada (D04): a primeira AIH do episódio é eletiva (se eletiva_programada) ou tem
+-- procedimento ou diagnóstico principal com prefixo de dic_sempre_programado.
+create or replace table episodio_programado as
+select
+    e.episodio_id,
+    coalesce(getvariable('eletiva_programada') and e.car_int = getvariable('car_int_eletivo'), false)
+        as eletiva,
+    exists (select 1 from dic_sempre_programado d
+            where d.tipo = 'procedimento' and starts_with(e.proc_rea, d.prefixo)) as procedimento,
+    exists (select 1 from dic_sempre_programado d
+            where d.tipo = 'cid' and starts_with(e.diag_princ, d.prefixo)) as cid
+from episodio e;
+
 -- Coorte de episódios: como a coorte da S06, mas a unidade é o episódio. Óbito na última
 -- internação tira o episódio inteiro; as marcas usam a saída final. Readmissão: o próximo
 -- episódio da mesma chave que começa entre a saída e janela_dias depois (pode terminar em
 -- óbito). readmissao_30d só tem valor nas elegíveis; nas outras é nulo.
+-- readmissao_nao_planejada_30d (D04): a mesma busca, mas só com voltas não programadas. A
+-- programada não conta nem censura: uma volta não planejada depois dela, na janela, conta.
 create or replace table coorte_episodio as
 with base as (
     select
@@ -136,17 +154,42 @@ with base as (
     from episodio
     where not obito
 ),
-proxima as (
-    select b.episodio_id, min(r.dt_inter) - b.dt_saida as dias_ate_readmissao
+volta as (
+    select
+        b.episodio_id,
+        r.dt_inter - b.dt_saida as dias,
+        p.eletiva or p.procedimento or p.cid as programada,
+        p.eletiva, p.procedimento, p.cid,
+        row_number() over (
+            partition by b.episodio_id order by r.dt_inter, r.dt_saida, r.episodio_id) as ordem
     from base b join episodio r
       on r.chave = b.chave and r.episodio_id <> b.episodio_id
      and r.dt_inter >= b.dt_saida
      and r.dt_inter <= b.dt_saida + getvariable('janela_dias')
      and (r.dt_inter, r.dt_saida, r.episodio_id) > (b.dt_inter, b.dt_saida, b.episodio_id)
-    group by b.episodio_id, b.dt_saida
+    join episodio_programado p on p.episodio_id = r.episodio_id
+),
+proxima as (
+    select
+        episodio_id,
+        min(dias) as dias_ate_readmissao,
+        bool_or(programada) filter (where ordem = 1) as primeira_volta_programada,
+        bool_or(eletiva) filter (where ordem = 1) as primeira_volta_eletiva,
+        bool_or(procedimento) filter (where ordem = 1) as primeira_volta_procedimento_programado,
+        bool_or(cid) filter (where ordem = 1) as primeira_volta_cid_programado,
+        min(dias) filter (where not programada) as dias_ate_readmissao_nao_planejada
+    from volta
+    group by episodio_id
 )
 select
     base.*,
     p.dias_ate_readmissao,
-    case when base.elegivel_indice then p.episodio_id is not null end as readmissao_30d
+    case when base.elegivel_indice then p.episodio_id is not null end as readmissao_30d,
+    p.primeira_volta_programada,
+    p.primeira_volta_eletiva,
+    p.primeira_volta_procedimento_programado,
+    p.primeira_volta_cid_programado,
+    p.dias_ate_readmissao_nao_planejada,
+    case when base.elegivel_indice then p.dias_ate_readmissao_nao_planejada is not null end
+        as readmissao_nao_planejada_30d
 from base left join proxima p using (episodio_id);

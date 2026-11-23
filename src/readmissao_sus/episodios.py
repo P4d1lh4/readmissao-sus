@@ -14,6 +14,7 @@ from datetime import date
 import duckdb
 
 from readmissao_sus.cobertura import JANELA_DIAS
+from readmissao_sus.programadas import REGRA_PROGRAMADA_PADRAO, RegraProgramada, carregar_regra
 from readmissao_sus.sql_versionado import executar_sql
 
 DIAS_CONTIGUIDADE = 1
@@ -69,10 +70,15 @@ class ComparacaoRegra:
     episodios: int
     altas_indice: int
     readmitidas: int
+    readmitidas_nao_planejadas: int = 0
 
     @property
     def taxa(self) -> float:
         return self.readmitidas / self.altas_indice if self.altas_indice else 0.0
+
+    @property
+    def taxa_nao_planejada(self) -> float:
+        return self.readmitidas_nao_planejadas / self.altas_indice if self.altas_indice else 0.0
 
 
 @dataclass(frozen=True)
@@ -86,9 +92,14 @@ class Episodios:
 
 
 def montar_episodios(
-    con: duckdb.DuckDBPyConnection, regra: RegraEpisodio, inicio: date, corte: date
+    con: duckdb.DuckDBPyConnection, regra: RegraEpisodio, inicio: date, corte: date,
+    programada: RegraProgramada = REGRA_PROGRAMADA_PADRAO,
 ) -> None:
-    """Cria as tabelas de episódio (precisa de internacao, coorte e dic_cobranca)."""
+    """Cria as tabelas de episódio (precisa de internacao, coorte e dic_cobranca).
+
+    `programada` (D04) decide quais voltas não contam em readmissao_nao_planejada_30d.
+    """
+    carregar_regra(con, programada)
     variaveis = {
         "juntar_permanencia": regra.juntar_permanencia,
         "contiguas_sem_motivo": regra.contiguas_sem_motivo,
@@ -110,7 +121,8 @@ def montar_episodios(
 
 
 def comparar_regras(
-    con: duckdb.DuckDBPyConnection, regra: RegraEpisodio, inicio: date, corte: date
+    con: duckdb.DuckDBPyConnection, regra: RegraEpisodio, inicio: date, corte: date,
+    programada: RegraProgramada = REGRA_PROGRAMADA_PADRAO,
 ) -> Episodios:
     """Monta os episódios com cada regra de REGRAS_COMPARADAS e termina com `regra`.
 
@@ -118,7 +130,7 @@ def comparar_regras(
     """
     comparacao = []
     for alternativa in (*[r for r in REGRAS_COMPARADAS if r != regra], regra):
-        montar_episodios(con, alternativa, inicio, corte)
+        montar_episodios(con, alternativa, inicio, corte, programada)
         comparacao.append(_comparacao(con, alternativa))
     ordem = {r: i for i, r in enumerate(REGRAS_COMPARADAS)}
     comparacao.sort(key=lambda c: ordem.get(c.regra, len(ordem)))
@@ -144,11 +156,12 @@ def ler_episodios(
 
 
 def _comparacao(con: duckdb.DuckDBPyConnection, regra: RegraEpisodio) -> ComparacaoRegra:
-    internacoes, episodios, altas, readmitidas = con.execute(
+    internacoes, episodios, altas, readmitidas, nao_planejadas = con.execute(
         """
         select (select count(*) from internacao), (select count(*) from episodio),
-               count(*) filter (where elegivel_indice), count(*) filter (where readmissao_30d)
+               count(*) filter (where elegivel_indice), count(*) filter (where readmissao_30d),
+               count(*) filter (where readmissao_nao_planejada_30d)
         from coorte_episodio
         """
     ).fetchone()
-    return ComparacaoRegra(regra, internacoes, episodios, altas, readmitidas)
+    return ComparacaoRegra(regra, internacoes, episodios, altas, readmitidas, nao_planejadas)

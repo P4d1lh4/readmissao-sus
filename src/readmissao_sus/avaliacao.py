@@ -125,4 +125,7 @@ def resumo_historico(episodios: pd.DataFrame) -> dict[str, Any]:
         "media_dias_internado_365d": float(episodios["dias_internado_365d"].mean()),
         "sem_episodio_anterior": float(episodios["dias_desde_ultima_alta"].isna().mean()),
         "readmissao_30d": float(episodios["readmissao_30d"].astype(float).mean()),
+        "readmissao_nao_planejada_30d": float(
+            episodios["readmissao_nao_planejada_30d"].astype(float).mean()
+        ),
     }

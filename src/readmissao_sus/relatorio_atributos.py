@@ -30,7 +30,9 @@ def gerar_bloco(r: ResumoAtributos, regra: RegraEpisodio, data_geracao: str) -> 
         f"Regra dos episódios: **{regra.descricao}** "
         f"(`contiguas_sem_motivo = '{regra.contiguas_sem_motivo}'`). "
         f"Episódios elegíveis (linhas de `atributo_episodio`): **{milhar(r.episodios)}**; "
-        f"readmitidos em 30 dias: {milhar(r.readmitidos)} ({pct(r.readmitidos, r.episodios)}).",
+        f"readmitidos em 30 dias: {milhar(r.readmitidos)} ({pct(r.readmitidos, r.episodios)}); "
+        f"sem as voltas programadas (alvo da D04): {milhar(r.nao_planejados)} "
+        f"({pct(r.nao_planejados, r.episodios)}).",
         "",
         "#### Colunas: tipo e nulos",
         "",
@@ -47,11 +49,12 @@ def gerar_bloco(r: ResumoAtributos, regra: RegraEpisodio, data_geracao: str) -> 
         tabela(["Item", "Valor"], [[NOMES_COLISAO[k], milhar(v)] for k, v in r.colisoes.items()]),
     ]
     for a in ATRIBUTOS:
-        linhas = [[f.rotulo, milhar(f.episodios), pct(f.episodios, r.episodios), pct_f(f.taxa)]
+        linhas = [[f.rotulo, milhar(f.episodios), pct(f.episodios, r.episodios), pct_f(f.taxa),
+                   pct_f(f.taxa_nao_planejada)]
                   for f in r.faixas[a.coluna]]
         partes += ["", f"#### `{a.coluna}`: {a.descricao}", "",
-                   tabela(["Faixa ou categoria", "Episódios", "% dos episódios", "Readmissão 30 dias"],
-                          linhas)]
+                   tabela(["Faixa ou categoria", "Episódios", "% dos episódios", "Readmissão 30 dias",
+                           "Não planejada 30 dias (D04)"], linhas)]
     partes.append(MARCA_FIM)
     return "\n".join(partes)
 

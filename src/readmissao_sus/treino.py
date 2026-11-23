@@ -24,6 +24,8 @@ from sklearn.base import BaseEstimator
 
 from readmissao_sus import avaliacao, investigacao
 from readmissao_sus.modelagem import (
+    ALVO,
+    ALVO_S10,
     ANO_TESTE,
     ANO_TREINO,
     ATRIBUTOS,
@@ -48,7 +50,7 @@ ARQUIVO_METRICAS = "metrics.json"
 ARQUIVO_IMPORTANCIA = "importancia_atributos.csv"
 
 GRUPOS_AVALIACAO = ("cep_generico", "historico_completo", "chave_colidente", "car_int")
-COLUNAS_LEITURA = ("episodio_id", CHAVE, "readmissao_30d", "dt_inter", "dt_saida", *ATRIBUTOS,
+COLUNAS_LEITURA = ("episodio_id", CHAVE, ALVO, ALVO_S10, "dt_inter", "dt_saida", *ATRIBUTOS,
                    "historico_completo", "chave_colidente")
 # Variante para medir o efeito do histórico incompleto de 2023: treino só com entradas a partir
 # desta data, que têm ao menos 181 dias de dados antes da entrada.
@@ -56,15 +58,16 @@ INICIO_VARIANTE_HISTORICO = date(2023, 7, 1)
 
 
 def ler_atributos(banco: Path) -> pd.DataFrame:
-    """Lê de atributo_episodio só as colunas que o treino usa (banco aberto só para leitura)."""
-    """Lê de atributo_episodio as colunas do treino e, de coorte_episodio, `dias_ate_readmissao`.
+    """Lê de atributo_episodio as colunas do treino e, de coorte_episodio, os dias até a volta.
 
-    `dias_ate_readmissao` nunca é atributo: só separa no teste as readmissões em 0–1 dia.
+    Banco aberto só para leitura. `dias_ate_readmissao` (dias até a primeira volta não planejada,
+    o alvo da D04) nunca é atributo: só separa no teste as readmissões em 0–1 dia.
     """
     colunas = ", ".join(f"a.{c}" for c in dict.fromkeys(COLUNAS_LEITURA))
     with duckdb.connect(str(banco), read_only=True) as con:
         return con.sql(
-            f"select {colunas}, c.dias_ate_readmissao from atributo_episodio a "
+            f"select {colunas}, c.dias_ate_readmissao_nao_planejada as dias_ate_readmissao "
+            "from atributo_episodio a "
             "join coorte_episodio c using (episodio_id) order by a.episodio_id"
         ).df()
 
@@ -158,6 +161,7 @@ def treinar_e_salvar(
             f"{n_splits} folds agrupados por chave (chaves embaralhadas, uma chave num fold só), em "
             f"{fracao_cv:.0%} das chaves do treino (amostra de chaves inteiras)"
         ),
+        "alvo": ALVO,
         "selecao": "maior ROC-AUC média na validação cruzada",
         "limiar_selecao": "máximo F1 nas probabilidades out-of-fold do vencedor",
         "random_state": random_state,

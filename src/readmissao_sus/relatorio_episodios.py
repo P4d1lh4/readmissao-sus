@@ -67,18 +67,22 @@ def _tabela_readmissao(e: Episodios) -> str:
     altas = itens.get("Altas-índice (episódios elegíveis)", 0)
     linhas = [[item, milhar(n)] for item, n in e.resumo.get("readmissao", [])]
     readmitidas = itens.get("Readmitidas em 30 dias", 0)
+    nao_planejadas = itens.get("Readmitidas em 30 dias sem as voltas programadas (D04)", 0)
     linhas.insert(2, ["Taxa de readmissão em 30 dias", pct(readmitidas, altas)])
+    linhas.insert(7, ["Taxa de readmissão não planejada em 30 dias (alvo da D04)",
+                      pct(nao_planejadas, altas)])
     return tabela(["Item", "Valor"], linhas)
 
 
 def _tabela_comparacao(e: Episodios) -> str:
     linhas = [
         [_nome_regra(c.regra), milhar(c.internacoes), milhar(c.episodios),
-         milhar(c.altas_indice), milhar(c.readmitidas), pct_f(c.taxa)]
+         milhar(c.altas_indice), milhar(c.readmitidas), pct_f(c.taxa),
+         milhar(c.readmitidas_nao_planejadas), pct_f(c.taxa_nao_planejada)]
         for c in e.comparacao
     ]
     texto = tabela(["Regra", "Internações", "Episódios", "Altas-índice", "Readmitidas",
-                    "Taxa 30 dias"], linhas)
+                    "Taxa 30 dias", "Não planejadas (D04)", "Taxa não planejada"], linhas)
     return texto + (
         "\n\nReferência (D01, por internação, sem juntar): 20,32% bruta; 11,82% tirando as "
         "altas-índice seguidas de contígua após transferência ou permanência."

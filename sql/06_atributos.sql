@@ -63,6 +63,7 @@ select
     a.episodio_id,
     a.chave,
     a.readmissao_30d,
+    a.readmissao_nao_planejada_30d,
     -- Paciente e entrada (da primeira internação do episódio).
     case a.cod_idade
         when '2' then 0

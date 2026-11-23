@@ -20,6 +20,7 @@ from readmissao_sus import dicionario_sih as dic
 from readmissao_sus.atributos import ResumoAtributos, ler_resumo, montar_atributos
 from readmissao_sus.cobertura import Cobertura, calcular_cobertura
 from readmissao_sus.episodios import REGRA_PADRAO, Episodios, RegraEpisodio, comparar_regras
+from readmissao_sus.programadas import REGRA_PROGRAMADA_PADRAO, RegraProgramada
 from readmissao_sus.sql_versionado import executar_sql
 
 SQL_INTERNACOES = ("01_staging.sql", "02_internacao.sql")
@@ -123,7 +124,8 @@ def montar_coorte(con: duckdb.DuckDBPyConnection, inicio: date, corte: date) -> 
 
 
 def construir_banco(
-    destino: Path, arquivos: list[Path], sal: str, regra: RegraEpisodio = REGRA_PADRAO
+    destino: Path, arquivos: list[Path], sal: str, regra: RegraEpisodio = REGRA_PADRAO,
+    programada: RegraProgramada = REGRA_PROGRAMADA_PADRAO,
 ) -> Construcao:
     """Recria `destino` do zero a partir dos Parquet; os episódios seguem `regra` (S07).
 
@@ -143,7 +145,9 @@ def construir_banco(
         preparar_internacoes(con, "parquet", sal)
         cobertura = calcular_cobertura(con, COMPETENCIAS_IDENT1)
         montar_coorte(con, cobertura.inicio, cobertura.limite_indice)
-        episodios = comparar_regras(con, regra, cobertura.inicio, cobertura.limite_indice)
+        episodios = comparar_regras(
+            con, regra, cobertura.inicio, cobertura.limite_indice, programada
+        )
         montar_atributos(con, cobertura.inicio)
         _gravar_parametros(con, cobertura)
         resultado = replace(ler_construcao(con, cobertura, episodios), atributos=ler_resumo(con))

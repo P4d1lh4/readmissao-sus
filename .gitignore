@@ -27,3 +27,6 @@ dist/
 fhir/pacotes/*.tgz
 !fhir/pacotes/br.go.ses.core-1.2.6.tgz
 fhir/pacotes/*.part
+
+# Validador HL7 (validator_cli.jar) e saídas temporárias de scripts/validar_fhir.py
+.cache/

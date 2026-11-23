@@ -219,3 +219,21 @@ Limites, que o README e o documento gerado precisam deixar claros:
 O script baixa só o que falta ou está com hash errado, confere o SHA-256 e o `package.json` (nome e versão) e só então grava o arquivo. Rodar de novo não baixa nada. O pacote da SES-GO vai para o git porque a URL de homologação não tem versão: quando a SES-GO publicar outra versão, o download passa a falhar com mensagem de hash diferente, mas o arquivo versionado continua valendo. Licença dos dois pacotes: CC0-1.0.
 
 Dependências que o validador ainda busca no registro de pacotes (packages.fhir.org): `hl7.fhir.r4.core#4.0.1`, `hl7.terminology.r4#6.5.0` e `hl7.fhir.uv.extensions.r4#5.2.0`. Na S05, o validador recebe `-version 4.0.1 -ig fhir/pacotes/br.go.ses.reds-go-1.0.3.tgz -ig fhir/pacotes/br.go.ses.core-1.2.6.tgz` e o perfil `-profile https://fhir.saude.go.gov.br/r4/core/StructureDefinition/sumario-alta`.
+
+### Validação local (S05)
+
+O comando acima roda por `scripts/validar_fhir.py` (uso no README), com o validador HL7 `validator_cli.jar` 7.0.3 (SHA-256 `57aa43fb40cec5de41def81c927725fd85908eeb71509b7f9313e04d9b8ec79b`, igual ao digest publicado na release do GitHub) dentro da imagem `eclipse-temurin:21.0.13.1_2-jre@sha256:b57b0a974dc5ba8b24009a97aeb9ffd178e172727736279e5de73605f40c6813`. Duas mudanças em relação à linha sugerida acima:
+
+- num Bundle, o perfil vai para a Composition com `-bundle Composition:0 <perfil>` em vez de `-profile`. Com `-profile`, o validador checou a Composition contra o `sumario-alta`, mas não reportou os problemas das próprias entradas do Bundle: um primeiro rascunho do exemplo, ainda sem narrativa, saiu com um único "All OK", e um diagnóstico com código errado só apareceu de forma indireta ("Unable to find a profile match"). Com `-bundle`, o validador reporta também os problemas das entradas (narrativa ausente, `display` proibido, código inexistente na CID-10);
+- `-txCache /root/.fhir/tx-cache`, para guardar as respostas do tx.fhir.org no mesmo volume Docker do cache de pacotes.
+
+**Terminologia.** Em 23/11/2026, uma das execuções de teste falhou porque o tx.fhir.org não respondeu ("Connect timed out"). Por isso o script valida com terminologia e, só quando o validador não consegue conectar, repete com `-tx n/a` e escreve isso na linha "Modo" da saída. Sem terminologia, códigos de CodeSystems que não estão nos pacotes (LOINC, SNOMED etc.) não são checados; os CodeSystems da RNDS usados no Sumário de Alta vêm completos (`content: complete`) no `br.go.ses.reds-go` e continuam sendo checados localmente.
+
+**Mensagens causadas pelo perfil.** Duas mensagens aparecem em qualquer documento correto e vêm do próprio guia, não do documento. Elas ficam em `MENSAGENS_CONHECIDAS` (`src/readmissao_sus/validador_fhir.py`), com padrão de texto restrito; aparecem na saída como `[CONHECIDA]`, com a justificativa, e não contam como aviso nem como erro:
+
+| Mensagem | Severidade | Por que é do perfil |
+| --- | --- | --- |
+| `Constraint failed: BrasileiroSeSomenteSeNasceNoBrasil` | warning | A invariante do `individuo` exige `patient-birthPlace.country = '10'` para nacionalidade `B`, mas o mesmo perfil liga `country` ao ValueSet `iso3166-1-3` (required), em que o Brasil é `BRA`. Nenhum documento satisfaz as duas regras. |
+| `None of the codings provided are in the value set 'Condition Category Codes'` (só com código `BRCategoriaDiagnostico`) | warning | O `diagnostico-sumario-alta` liga `Condition.category` a `BRCategoriaDiagnostico` (required), que não faz parte do ValueSet extensible do FHIR R4. O aviso vem do binding base, que o perfil não pode remover. |
+
+Nenhum erro (severidade `error`) precisou entrar na lista.

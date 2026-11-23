@@ -22,6 +22,7 @@ readmissao-sus/
 ├── data/              # dados baixados e processados (fora do git)
 ├── docs/              # planejamento do projeto
 ├── fhir/pacotes/      # pacotes FHIR (.tgz) usados na validação
+├── fhir/exemplos/     # Sumário de Alta de exemplo: um válido e um propositalmente inválido
 ├── src/readmissao_sus/  # código do pacote
 ├── tests/             # testes com pytest
 ├── pytest.ini
@@ -65,3 +66,26 @@ Para baixar os pacotes FHIR do Sumário de Alta para `fhir/pacotes/` (versão e 
 ```
 
 Não há perfil FHIR nacional do Sumário de Alta publicado. O projeto usa o perfil `sumario-alta` do guia CORE da SES-GO (versão 1.2.6, **rascunho**, ambiente de homologação) com os artefatos da RNDS do pacote `br.go.ses.reds-go`. Os motivos e as URLs canônicas estão na decisão D02 de `docs/decisoes.md`.
+
+### Validar um documento FHIR (validador HL7 em Docker)
+
+O validador oficial da HL7 (`validator_cli.jar` 7.0.3, SHA-256 conferido) roda num container `eclipse-temurin:21.0.13.1_2-jre` (tag e digest fixos). Não é preciso instalar Java no Windows; basta o Docker Desktop aberto.
+
+```powershell
+.venv\Scripts\python scripts\validar_fhir.py fhir\exemplos\sumario-alta-valido.json
+.venv\Scripts\python scripts\validar_fhir.py fhir\exemplos\sumario-alta-invalido.json
+```
+
+O script valida contra `fhir/pacotes/` (`-ig`), aplica o perfil `sumario-alta` à Composition do Bundle (`-bundle Composition:0 <perfil>`), lê o OperationOutcome gerado com `-output` e imprime as mensagens e um resumo (erros, avisos, informações). Código de saída: **0** sem erros, **1** com erro de validação, **2** se o validador não rodou (Docker parado, pacote ausente etc.).
+
+- O jar é baixado uma vez para `.cache/validador/` (fora do git). As dependências HL7 (`hl7.fhir.r4.core`, `hl7.terminology.r4`, `hl7.fhir.uv.extensions.r4` etc.) e as respostas do servidor de terminologia ficam no volume Docker `readmissao-sus-fhir`. A primeira execução baixa cerca de 200 MB e leva alguns minutos; depois, cada validação leva de 30 s a 1 min (quase tudo é a carga dos pacotes).
+- Por padrão os códigos são conferidos no servidor de terminologia `tx.fhir.org`. Se ele não responder, o script valida de novo com `-tx n/a` e diz isso na linha "Modo". `--sem-terminologia` força esse modo. Sem terminologia, códigos de CodeSystems externos (LOINC, SNOMED etc.) não são checados; os CodeSystems e ValueSets que vêm completos nos pacotes (CID-10, Tabela SUS, municípios e demais tabelas da RNDS) continuam sendo checados localmente.
+- Duas mensagens causadas pelo próprio perfil da SES-GO, e não pelo documento, aparecem como `[CONHECIDA]`, com a justificativa, e não contam como aviso. A lista fica em `MENSAGENS_CONHECIDAS` (`src/readmissao_sus/validador_fhir.py`) e está explicada na D02 de `docs/decisoes.md`.
+
+Os exemplos em `fhir/exemplos/` usam só dados fictícios. O inválido tem dois erros de propósito: falta a seção obrigatória "Procedimento(s)" e o diagnóstico usa `I5099`, que não existe na CID-10.
+
+Os testes de integração (rodam o validador de verdade; pulados se o Docker estiver ausente ou parado) ficam fora da suíte padrão:
+
+```powershell
+.venv\Scripts\python -m pytest -m integracao
+```

@@ -8,7 +8,7 @@ Tabela `atributo_episodio` do banco DuckDB local (`data/sih.duckdb`, fora do git
 .venv\Scripts\python scripts\construir_banco.py
 ```
 
-O SQL está em `sql/06_atributos.sql`, rodado por `src/readmissao_sus/atributos.py` depois dos episódios (S07). O script reescreve só o bloco entre as marcas `atributos` abaixo. A regra das contíguas sem motivo (D03) continua parâmetro, com padrão `nenhuma`: `--contiguas-sem-motivo mesmo_hospital` muda os episódios e, com eles, os atributos.
+O SQL está em `sql/06_atributos.sql`, rodado por `src/readmissao_sus/atributos.py` depois dos episódios (S07). O script reescreve só o bloco entre as marcas `atributos` abaixo. A regra das contíguas sem motivo (D03) continua parâmetro, com padrão `mesmo_hospital` (decidido em 24/11/2026): `--contiguas-sem-motivo nenhuma|todas` muda os episódios e, com eles, os atributos.
 
 ## Atributos
 
@@ -62,14 +62,14 @@ As contagens estão na tabela "Colisões (D01)" abaixo.
 
 ## Leitura dos números
 
-Números de 23/11/2026, antes da D03 (`nenhuma`). O bloco abaixo foi regerado em 24/11/2026 com a regra decidida na D03 (`mesmo_hospital`): 940.139 episódios elegíveis, readmissão de 9,53% e readmissão não planejada (alvo da D04) de 5,52%. As leituras abaixo continuam valendo em ordem de grandeza.
+Números de 24/11/2026, com a regra da D03 (`mesmo_hospital`); estão no bloco abaixo. As taxas são do alvo do modelo, `readmissao_nao_planejada_30d` (D04). Entre parênteses, a de `readmissao_30d`, que conta também as voltas programadas.
 
-- **963.767 episódios elegíveis** e taxa de 11,78%, os mesmos da `coorte_episodio` em `docs/coorte.md`: a tabela não tira nem acrescenta episódios.
-- **Histórico.** É o grupo de atributos com o sinal mais forte: a readmissão vai de 7,51% sem episódio anterior em 365 dias a 67,20% com 5 ou mais. A taxa também sobe quando a última alta foi há pouco tempo (42,75% com `dias_desde_ultima_alta` entre 2 e 7).
-- **Efeito de `historico_completo`.** Nas entradas de 2023 (janela incompleta, 55,91% dos episódios), só 18,10% têm episódio anterior em 365 dias, contra 23,67% nas de 2024, e a média de `episodios_365d` cai de 0,780 para 0,445. A diferença é o histórico que ficou antes de 01/01/2023. Mesmo assim, a taxa de readmissão dos dois grupos é parecida (11,90% e 11,68%), e o histórico separa bem os readmitidos nos dois. Sem tratamento, o modelo pode ler "sem histórico" em 2023 como risco menor do que é.
-- **Colisões.** 7.214 chaves têm episódios sobrepostos, o mesmo número de chaves colidentes da D01 (que media por internação). Entre os elegíveis, 17.239 (1,79%) são de chave colidente e 12.801 (1,33%) se sobrepõem a outro episódio. A taxa nas chaves colidentes (21,72%) é quase o dobro da geral: quando duas pessoas dividem a chave, as internações de uma viram readmissão da outra. 1.680 elegíveis têm um óbito antes da entrada na mesma chave, o que só acontece com colisão. Essas marcas servem para avaliar o modelo sem esses grupos.
-- **CEP genérico.** 45,26% dos elegíveis, com taxa menor (9,98% contra 13,26%), como na D01.
-- **Nulos.** Só `dias_desde_ultima_alta` (78,47%, nulo quando não há episódio anterior nos dados) e uma idade inválida. Nenhum diagnóstico ficou sem capítulo e nenhum procedimento ficou sem grupo.
+- **940.139 episódios elegíveis**, com taxa de readmissão não planejada de 5,52% (9,53%). São os mesmos da `coorte_episodio` em `docs/coorte.md`: a tabela não tira nem acrescenta episódios.
+- **Histórico.** É o grupo de atributos com o sinal mais forte. A readmissão não planejada vai de 4,10% sem episódio anterior em 365 dias a 17,98% com 5 ou mais (5,76% a 67,20%). A taxa também sobe quando a última alta foi há pouco tempo: 18,25% com `dias_desde_ultima_alta` entre 2 e 7 (41,01%). Com o alvo antigo, o histórico parecia bem mais forte porque as voltas programadas (ciclos de tratamento) se repetem nas mesmas chaves.
+- **Efeito de `historico_completo`.** Nas entradas com janela incompleta (55,85% dos episódios, quase todas de 2023), só 16,17% têm episódio anterior em 365 dias, contra 22,10% nas de janela completa, e a média de `episodios_365d` cai de 0,729 para 0,403. A diferença é o histórico que ficou antes de 01/01/2023. Mesmo assim, a taxa dos dois grupos é parecida (5,68% e 5,32%; 9,30% e 9,83%). Sem tratamento, o modelo pode ler "sem histórico" em 2023 como risco menor do que é.
+- **Colisões.** 7.219 chaves têm episódios sobrepostos. Na D01, que media por internação, eram 7.214; a diferença vem dos episódios juntados pela D03. Entre os elegíveis, 16.336 (1,74%) são de chave colidente e 12.593 (1,34%) se sobrepõem a outro episódio. A taxa nas chaves colidentes (11,92%; 15,89%) é mais que o dobro da geral: quando duas pessoas dividem a chave, as internações de uma viram readmissão da outra. 1.645 elegíveis têm um óbito antes da entrada na mesma chave, o que só acontece com colisão. Essas marcas servem para avaliar o modelo sem esses grupos.
+- **CEP genérico.** 45,46% dos elegíveis. Com o alvo antigo, a taxa era menor nesse grupo (8,10% contra 10,73%), como na D01. Com o alvo atual, fica parecida e até um pouco maior (5,62% contra 5,44%). A diferença do alvo antigo vinha das voltas programadas, mais comuns entre as altas com CEP específico.
+- **Nulos.** Só `dias_desde_ultima_alta` (80,21%, nulo quando não há episódio anterior nos dados) e uma idade inválida. Nenhum diagnóstico ficou sem capítulo e nenhum procedimento ficou sem grupo.
 
 ## Contagens
 

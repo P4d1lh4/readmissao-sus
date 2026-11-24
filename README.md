@@ -2,6 +2,25 @@
 
 Previsão de readmissão hospitalar não planejada em 30 dias com dados públicos do SIH/SUS (Pernambuco, 2023–2024) e geração do Sumário de Alta em FHIR no padrão da RNDS.
 
+## Em resumo
+
+- **5,5% das altas voltam ao hospital sem planejamento em até 30 dias:** 51.891 de 940.139 altas do SUS em Pernambuco. A mesma pessoa é achada nas AIHs sem CPF nem CNS, por uma chave determinística.
+- **O modelo ordena o risco com ROC-AUC 0,79** num ano que ele não viu: treina com as altas de 2023 e é testado em 420.746 altas de 2024. É bem calibrado (erro médio de 0,4 ponto percentual). Serve para apontar grupos de risco, não para decidir caso a caso.
+- **O primeiro resultado (0,84) era bom demais, e foi investigado.** O excesso vinha de voltas programadas (quimioterapia, cirurgia em etapas) e de AIHs administrativas do mesmo hospital. Sem elas no alvo (D04 e D03), o número caiu para 0,79, o resultado honesto.
+- **Hospitais comparados com ajuste de risco:** dos 193 com pelo menos 100 altas, 28 têm mais readmissões do que pacientes de perfil parecido no estado e 39 têm menos (D05).
+- **Cada alta vira um Sumário de Alta em FHIR R4**, validado com o validador da HL7 e os perfis da RNDS e da SES-GO, e uma API local devolve o documento junto com o risco.
+
+![Dashboard: razão observado/esperado de readmissão por hospital, com IC 95%](docs/img/dashboard-hospitais.jpg)
+
+| Parte | Como foi feita |
+| --- | --- |
+| Dados | SIH-RD baixado do FTP do DATASUS, lido com `pyreaddbc`, guardado em Parquet e montado em DuckDB com SQL versionado |
+| Linkage | chave NASC + SEXO + CEP + MUNIC_RES guardada só como hash SHA-256 com sal; colisões medidas e marcadas |
+| Modelo | scikit-learn e XGBoost, validação temporal, validação cruzada agrupada por pessoa, investigação de vazamento a cada treino |
+| Interoperabilidade | FHIR R4, perfis da RNDS e da SES-GO, validador oficial da HL7 em Docker |
+| Serviço | API em FastAPI e dashboard em Streamlit com Plotly |
+| Qualidade | 180 testes com pytest; cada decisão de método registrada em `docs/decisoes.md` |
+
 > **Aviso:** este é um projeto de estudo e portfólio feito sobre dados públicos e anonimizados do DATASUS. Não é ferramenta clínica e não deve apoiar decisões sobre pacientes reais.
 >
 > **Não há envio real à RNDS.** Os documentos FHIR são gerados e validados apenas localmente, com o validador oficial da HL7 e os perfis publicados. Nenhum dado é transmitido à Rede Nacional de Dados em Saúde.
@@ -25,7 +44,7 @@ readmissao-sus/
 ├── api/               # API FastAPI do Sumário de Alta com risco
 ├── dashboard/         # dashboard Streamlit: aba Hospitais
 ├── data/              # dados baixados e processados (fora do git)
-├── docs/              # decisões, coorte, atributos, modelo e inventário do SIH
+├── docs/              # decisões, coorte, atributos, modelo, inventário do SIH e imagens
 ├── fhir/pacotes/      # pacotes FHIR (.tgz) usados na validação
 ├── fhir/exemplos/     # Sumário de Alta de exemplo: um válido e um propositalmente inválido
 ├── fhir/saida/        # Sumários de Alta gerados de episódios reais (fora do git)
@@ -45,7 +64,7 @@ Documentos de apoio:
 
 | Arquivo | Conteúdo |
 | --- | --- |
-| `docs/decisoes.md` | D01 linkage, D02 perfil FHIR, D03 contíguas sem motivo (decidida: `mesmo_hospital`), D04 readmissões programadas |
+| `docs/decisoes.md` | D01 linkage, D02 perfil FHIR, D03 contíguas sem motivo (decidida: `mesmo_hospital`), D04 readmissões programadas, D05 ajuste de risco dos hospitais |
 | `docs/coorte.md` | filtros, marcas, sal da chave e contagens do banco |
 | `docs/atributos.md` | definição e contagens de cada atributo do modelo |
 | `docs/modelo.md` | atributos que entram e ficam fora, validação cruzada e checagens |

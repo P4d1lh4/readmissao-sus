@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from readmissao_sus.episodios import (
-    DIAS_CONTIGUIDADE, REGRA_PADRAO, REGRA_PROPOSTA_D03, Episodios, RegraEpisodio,
+    DIAS_CONTIGUIDADE, REGRA_NENHUMA, REGRA_PADRAO, Episodios, RegraEpisodio,
 )
 from readmissao_sus.formato_md import gravar_entre_marcas, milhar, pct, pct_f, tabela
 
@@ -92,9 +92,9 @@ def _tabela_comparacao(e: Episodios) -> str:
 def _nome_regra(regra: RegraEpisodio) -> str:
     marcas = []
     if regra == REGRA_PADRAO:
-        marcas.append("padrão")
-    if regra == REGRA_PROPOSTA_D03:
-        marcas.append("proposta D03")
+        marcas.append("padrão, D03")
+    if regra == REGRA_NENHUMA:
+        marcas.append("antes da D03")
     sufixo = f" ({', '.join(marcas)})" if marcas else ""
     return regra.descricao + sufixo
 

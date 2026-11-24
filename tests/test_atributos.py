@@ -6,7 +6,7 @@ import pytest
 
 from readmissao_sus.atributos import faixa_sql, ler_resumo, montar_atributos
 from readmissao_sus.banco import COLUNAS_FONTE, montar_coorte, preparar_internacoes
-from readmissao_sus.episodios import REGRA_PADRAO, REGRA_PROPOSTA_D03, montar_episodios
+from readmissao_sus.episodios import REGRA_NENHUMA, REGRA_PADRAO, REGRA_D03, montar_episodios
 
 INICIO = date(2023, 1, 1)
 CORTE = date(2024, 10, 1)
@@ -61,7 +61,7 @@ def _cenario():
     return pd.DataFrame(linhas, columns=list(COLUNAS_FONTE), dtype="string")
 
 
-def _montar(regra=REGRA_PADRAO):
+def _montar(regra=REGRA_NENHUMA):
     con = duckdb.connect()
     con.register("bruto_df", _cenario())
     preparar_internacoes(con, "bruto_df", "sal")
@@ -155,7 +155,7 @@ def test_atributos_do_episodio(con):
 
 
 def test_regra_d03_continua_parametro():
-    con = _montar(REGRA_PROPOSTA_D03)
+    con = _montar(REGRA_D03)
     assert _hist(con, "A3") == (0, 0, None)
     assert _coluna(con, "B3", "readmissao_30d") is None
     assert _coluna(con, "A3", "n_aihs") == 2 and _coluna(con, "A3", "houve_contigua_sem_motivo")

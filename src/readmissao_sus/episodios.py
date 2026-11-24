@@ -2,8 +2,8 @@
 
 A regra fica em `RegraEpisodio`. A transferência (COBRANCA 29, 31, 32) seguida de nova AIH da
 mesma chave no dia da saída ou no seguinte sempre junta. A permanência (21–28) junta por padrão
-(D01, tratamento 6). As contíguas "sem motivo" (alta seguida de nova AIH em 0–1 dia) dependem
-da D03, que aguarda decisão do usuário: o padrão conservador é não juntar.
+(D01, tratamento 6). As contíguas "sem motivo" (alta seguida de nova AIH em 0–1 dia) seguem a
+D03, decidida pelo usuário em 24/11/2026: juntam quando a nova AIH é no mesmo hospital.
 """
 
 from __future__ import annotations
@@ -26,9 +26,8 @@ CONTIGUAS_SEM_MOTIVO = ("nenhuma", "mesmo_hospital", "todas")
 class RegraEpisodio:
     """Quais saídas, seguidas de nova AIH contígua, continuam o mesmo episódio.
 
-    contiguas_sem_motivo (D03): 'nenhuma' (padrão conservador: alta seguida de nova AIH conta
-    como readmissão), 'mesmo_hospital' (proposta da D03: junta se a nova AIH é no mesmo CNES)
-    ou 'todas'.
+    contiguas_sem_motivo (D03): 'nenhuma' (alta seguida de nova AIH conta como readmissão),
+    'mesmo_hospital' (regra decidida na D03: junta se a nova AIH é no mesmo CNES) ou 'todas'.
     """
 
     juntar_permanencia: bool = True
@@ -53,12 +52,13 @@ class RegraEpisodio:
         return " + ".join(partes)
 
 
-REGRA_PADRAO = RegraEpisodio()
-REGRA_PROPOSTA_D03 = RegraEpisodio(contiguas_sem_motivo="mesmo_hospital")
+REGRA_NENHUMA = RegraEpisodio()
+REGRA_D03 = RegraEpisodio(contiguas_sem_motivo="mesmo_hospital")
+REGRA_PADRAO = REGRA_D03
 REGRAS_COMPARADAS = (
     RegraEpisodio(juntar_permanencia=False),
-    REGRA_PADRAO,
-    REGRA_PROPOSTA_D03,
+    REGRA_NENHUMA,
+    REGRA_D03,
     RegraEpisodio(contiguas_sem_motivo="todas"),
 )
 

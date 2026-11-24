@@ -6,7 +6,7 @@ import pytest
 
 from readmissao_sus.banco import COLUNAS_FONTE, montar_coorte, preparar_internacoes
 from readmissao_sus.episodios import (
-    REGRA_PADRAO, REGRA_PROPOSTA_D03, RegraEpisodio, comparar_regras, montar_episodios,
+    REGRA_NENHUMA, REGRA_PADRAO, REGRA_D03, RegraEpisodio, comparar_regras, montar_episodios,
 )
 
 INICIO = date(2023, 1, 1)
@@ -59,7 +59,7 @@ def _cenario():
     return pd.DataFrame(linhas, columns=list(COLUNAS_FONTE), dtype="string")
 
 
-def _montar(regra=REGRA_PADRAO):
+def _montar(regra=REGRA_NENHUMA):
     con = duckdb.connect()
     con.register("bruto_df", _cenario())
     preparar_internacoes(con, "bruto_df", "sal")
@@ -104,7 +104,7 @@ def test_transferencia_seguida_de_aih_dois_dias_depois_nao_junta(con):
     assert (dias, readmitida) == (2, True)
 
 
-def test_alta_comum_nao_junta_no_padrao(con):
+def test_alta_comum_nao_junta_com_a_regra_nenhuma(con):
     for n_aih in ("AMA", "AMB", "AOA", "AOB"):
         assert _episodio_de(con, n_aih)[0] == [n_aih]
 
@@ -122,13 +122,19 @@ def test_permanencia_junta_no_padrao_e_nao_junta_sem_o_parametro(con):
 
 
 def test_contiguas_sem_motivo_seguem_o_parametro_da_d03():
-    proposta = _montar(REGRA_PROPOSTA_D03)
+    proposta = _montar(REGRA_D03)
     assert _episodio_de(proposta, "AMA")[0] == ["AMA", "AMB"]   # mesmo hospital: junta
     assert _episodio_de(proposta, "AOA")[0] == ["AOA"]          # outro hospital: não junta
 
     todas = _montar(RegraEpisodio(contiguas_sem_motivo="todas"))
     assert _episodio_de(todas, "AOA")[0] == ["AOA", "AOB"]
     assert _episodio_de(todas, "T2A")[0] == ["T2A"]             # 2 dias continua separado
+
+
+def test_padrao_e_a_regra_decidida_na_d03():
+    assert REGRA_PADRAO == RegraEpisodio(juntar_permanencia=True, contiguas_sem_motivo="mesmo_hospital")
+    padrao = _montar(REGRA_PADRAO)
+    assert _episodio_de(padrao, "AMA")[0] == ["AMA", "AMB"]
 
 
 def test_regra_invalida_falha():
@@ -190,7 +196,7 @@ def test_contagens_de_juncao(con):
 
 def test_comparar_regras_termina_com_a_regra_pedida():
     con = _montar()
-    episodios = comparar_regras(con, REGRA_PROPOSTA_D03, INICIO, CORTE)
+    episodios = comparar_regras(con, REGRA_D03, INICIO, CORTE)
 
     assert [c.regra.contiguas_sem_motivo for c in episodios.comparacao] == [
         "nenhuma", "nenhuma", "mesmo_hospital", "todas"]
@@ -204,7 +210,7 @@ def test_comparar_regras_termina_com_a_regra_pedida():
 def test_bloco_do_documento_traz_contagens_e_comparacao_sem_dados_individuais(tmp_path):
     from readmissao_sus.relatorio_episodios import MARCA_FIM, MARCA_INICIO, gerar_bloco, gravar_bloco
 
-    episodios = comparar_regras(_montar(), REGRA_PADRAO, INICIO, CORTE)
+    episodios = comparar_regras(_montar(), REGRA_NENHUMA, INICIO, CORTE)
     bloco = gerar_bloco(episodios, "01/01/2025")
     doc = tmp_path / "coorte.md"
     doc.write_text(f"# Coorte\n\ntexto\n\n{MARCA_INICIO}\nvelho\n{MARCA_FIM}\n", encoding="utf-8")
@@ -213,5 +219,5 @@ def test_bloco_do_documento_traz_contagens_e_comparacao_sem_dados_individuais(tm
 
     assert "velho" not in texto and "texto" in texto
     assert "| Episódios (tabela episodio) | 15 |" in texto
-    assert "(proposta D03)" in texto and "(padrão)" in texto
+    assert "(antes da D03)" in texto and "(padrão, D03)" in texto
     assert "19700107" not in texto and "T0A" not in texto

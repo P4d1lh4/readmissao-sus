@@ -181,7 +181,7 @@ def test_construir_banco_recria_do_zero_e_gera_bloco(tmp_path):
         assert {"stg_aih", "internacao", "coorte", "coorte_filtros", "coorte_detalhes"} <= tabelas
         assert {"episodio", "episodio_membro", "coorte_episodio", "episodio_parametros"} <= tabelas
         assert c.execute("select count(*) from coorte").fetchone()[0] == resultado.filtros[-1][4]
-        assert c.execute("select contiguas_sem_motivo from episodio_parametros").fetchone()[0] == "nenhuma"
+        assert c.execute("select contiguas_sem_motivo from episodio_parametros").fetchone()[0] == "mesmo_hospital"   # padrão da D03
     assert not (tmp_path / "sih.duckdb.novo").exists()
     doc = tmp_path / "coorte.md"
     doc.write_text(f"# Coorte\n\ntexto\n\n{MARCA_INICIO}\nvelho\n{MARCA_FIM}\n", encoding="utf-8")

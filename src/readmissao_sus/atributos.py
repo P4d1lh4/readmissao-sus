@@ -71,7 +71,7 @@ ATRIBUTOS = (
     _sim_nao("houve_transferencia", "Episódio juntou internações por transferência"),
     _sim_nao("houve_permanencia", "Episódio juntou internações por permanência"),
     _sim_nao("houve_contigua_sem_motivo",
-             "Episódio juntou contíguas sem motivo (só com a D03 diferente de 'nenhuma')"),
+             "Episódio juntou contíguas sem motivo (D03: só no mesmo hospital)"),
     _sim_nao("cep_generico", "CEP terminado em 000 (D01, condição 2)"),
     Atributo("cnes_alta", "CNES do hospital da alta (última internação)"),
     Atributo("ano_alta", "Ano da alta", por_volume=False),

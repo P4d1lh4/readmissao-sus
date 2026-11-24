@@ -400,3 +400,33 @@ A lista fica em `SEMPRE_PROGRAMADOS` e a regra em `RegraProgramada`, em `src/rea
 Com a D03 decidida (`mesmo_hospital`, 24/11/2026), os números da D04 passam a ser: 940.139 altas-índice, 89.641 readmitidas (9,53%), 37.750 reclassificadas e **51.891 readmitidas não planejadas (5,52%)**. A variante sem o caráter eletivo fica em 75.918 (8,08%). A tabela acima é da construção de 23/11/2026, antes da D03.
 
 **Decisão do usuário (23/11/2026):** manter a volta eletiva como programada. Ficam valendo a regra padrão e a taxa de 7,25%. A variante só com a lista do SIGTAP (10,33%) fica registrada aqui como comparação.
+
+## D05 — Ajuste de risco para comparar hospitais (S14)
+
+**Estado: decidido pelo usuário em 24/11/2026** (fazer o ajuste de risco dos hospitais).
+
+### Problema
+
+A razão O/E por hospital da S11 usava o esperado do modelo principal. Esse modelo tem o hospital da alta (`cnes_alta`) como atributo, o de maior importância. O esperado de cada hospital já carregava parte do efeito dele, e a razão media sobretudo quanto o hospital mudou em relação a 2023, não como ele se compara aos outros.
+
+### Regra
+
+- **Modelo de ajuste:** o mesmo pipeline e o mesmo XGBoost do modelo principal, com os mesmos atributos menos `cnes_alta` (`src/readmissao_sus/ajuste_risco.py`). Treinado com as altas de 2023 e aplicado às do teste (2024 até 01/10/2024).
+- **Recalibração no total do ano:** a probabilidade de cada alta do teste é multiplicada por um fator único, observado total ÷ esperado total. Assim, a razão de cada hospital fica relativa à média do estado em 2024, e não ao nível de 2023. É o padrão da padronização indireta.
+- **O resto não muda:** observado, IC 95% de Poisson exato e mínimo de 100 altas.
+
+### Resultado (24/11/2026)
+
+| Item | Valor |
+| --- | ---: |
+| ROC-AUC do ajuste no teste | 0,774 (modelo principal: 0,791) |
+| Fator de recalibração | 0,946 |
+| Hospitais com >= 100 altas | 193 |
+| Acima / compatíveis / abaixo, com o ajuste | 28 / 126 / 39 |
+| Acima / compatíveis / abaixo, com o modelo principal | 13 / 153 / 27 |
+
+Os números estão em `reports/hospitais_ajuste.json`. O modelo principal continua o mesmo, com `cnes_alta`: ele serve para prever o risco de cada alta, e o ajuste serve só para comparar hospitais.
+
+### Limites
+
+O ajuste só vê o que o SIH-RD registra. Gravidade clínica, exames e condição social ficam de fora, e um hospital de referência, que recebe os casos mais graves, pode aparecer "acima" por isso. O fator de recalibração usa o desfecho do próprio ano do teste: serve para comparar hospitais dentro de 2024, não para prever 2025.

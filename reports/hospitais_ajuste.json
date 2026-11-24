@@ -1,0 +1,42 @@
+{
+  "metodo": "esperado = probabilidade de um XGBoost sem o hospital da alta, treinado com as altas de 2023 e aplicado ao teste 2024, multiplicada pelo fator de recalibração (D05)",
+  "atributos": [
+    "idade",
+    "dias_permanencia",
+    "dias_uti",
+    "n_aihs",
+    "n_hospitais",
+    "episodios_365d",
+    "dias_internado_365d",
+    "dias_desde_ultima_alta",
+    "usou_uti",
+    "houve_transferencia",
+    "houve_permanencia",
+    "houve_contigua_sem_motivo",
+    "cep_generico",
+    "historico_com_obito",
+    "sexo",
+    "capitulo_cid",
+    "grupo_sigtap",
+    "car_int"
+  ],
+  "random_state": 42,
+  "treino_altas": 519393,
+  "teste_altas": 420746,
+  "roc_auc_teste_ajuste": 0.7735211293875364,
+  "fator_recalibracao": 0.9458520728138982,
+  "hospitais": 193,
+  "altas_nos_hospitais": 417886,
+  "observado_nos_hospitais": 22344,
+  "esperado_nos_hospitais": 22355.59765625,
+  "leituras_ajuste": {
+    "acima": 28,
+    "abaixo": 39,
+    "compativel": 126
+  },
+  "leituras_modelo_principal": {
+    "acima": 13,
+    "abaixo": 27,
+    "compativel": 153
+  }
+}

@@ -70,7 +70,7 @@ Os comandos abaixo seguem a ordem do pipeline. Todos rodam na raiz do projeto.
 | 3. Construir o banco | `scripts\construir_banco.py` | `--contiguas-sem-motivo`, `--sem-permanencia`, `--eletiva-nao-programada` |
 | 4. Baixar os pacotes FHIR | `scripts\baixar_pacotes_fhir.py` | nenhum |
 | 5. Treinar o modelo | `scripts\treinar.py` | `--banco`, `--dir-modelo`, `--dir-relatorios`, `--random-state`, `--fracao-cv` |
-| 6. Razão O/E por hospital | `scripts\razao_hospitais.py` | `--banco`, `--dir-modelo`, `--saida`, `--minimo-altas` |
+| 6. Razão O/E por hospital | `scripts\razao_hospitais.py` | `--banco`, `--dir-modelo`, `--saida`, `--minimo-altas`, `--random-state` |
 | 7. Gerar Sumários de Alta | `scripts\gerar_sumarios.py` | `--banco`, `--saida`, `--sem-validar`, `--sem-terminologia` |
 | — Validar um documento FHIR | `scripts\validar_fhir.py <arquivo ou pasta>` | `--perfil`, `--sem-terminologia`, `--log` |
 
@@ -133,13 +133,13 @@ Leva cerca de 10 minutos em CPU de 12 threads (`random_state = 42`). O script l�
 
 ### 6. Razão O/E por hospital
 
-Gera `reports/hospitais_oe.csv` (vai para o git; só agregados por CNES):
+Gera `reports/hospitais_oe.csv` e `reports/hospitais_ajuste.json` (vão para o git; só agregados):
 
 ```powershell
 .venv\Scripts\python scripts\razao_hospitais.py
 ```
 
-O script pontua em memória as altas do teste (2024 até 01/10/2024) com o modelo de `models/` e agrupa pelo hospital da alta (`cnes_alta`). Colunas: `cnes`, `altas`, `observado` (readmissões não planejadas em 30 dias), `esperado` (soma das probabilidades), `razao_oe` e `ic95_inf`/`ic95_sup` (IC 95% de Poisson exato para o observado, dividido pelo esperado). Entram só hospitais com pelo menos 100 altas (`--minimo-altas`). Nenhuma probabilidade por episódio é gravada. Os números estão em [Hospitais](#hospitais-razão-observadoesperado).
+O esperado vem de um modelo de ajuste de risco sem o hospital da alta (D05): o mesmo XGBoost, treinado com as altas de 2023, aplicado às do teste (2024 até 01/10/2024) e recalibrado para que o total esperado bata com o observado no ano. O script pontua tudo em memória e agrupa pelo hospital da alta (`cnes_alta`). Leva cerca de 2 minutos. Colunas: `cnes`, `altas`, `observado` (readmissões não planejadas em 30 dias), `esperado` (soma das probabilidades), `razao_oe` e `ic95_inf`/`ic95_sup` (IC 95% de Poisson exato para o observado, dividido pelo esperado). Entram só hospitais com pelo menos 100 altas (`--minimo-altas`). O JSON traz o ROC-AUC do ajuste, o fator de recalibração e quantos hospitais ficam acima e abaixo, com o ajuste e com o modelo principal (se houver modelo em `models/`). Nenhuma probabilidade por episódio é gravada. Os números estão em [Hospitais](#hospitais-razão-observadoesperado).
 
 ### 7. Gerar Sumários de Alta
 
@@ -314,17 +314,21 @@ Os modelos anteriores passaram de 0,80 (0,839 na S10 e 0,811 antes da D03) e for
 
 ## Hospitais: razão observado/esperado
 
-`reports/hospitais_oe.csv`, gerado em 24/11/2026 com o modelo atual. Das 420.746 altas do teste, 417.886 são de 193 hospitais com pelo menos 100 altas. Nesses hospitais, o observado soma 22.344 readmissões não planejadas e o esperado, 23.485: razão geral de 0,95, porque a taxa caiu de 5,6% no treino para 5,4% no teste.
+`reports/hospitais_oe.csv` e `reports/hospitais_ajuste.json`, gerados em 24/11/2026. O esperado vem do ajuste de risco sem o hospital (D05): quantas altas voltariam se os pacientes de cada hospital tivessem a taxa de pacientes de perfil parecido no estado. Das 420.746 altas do teste, 417.886 são de 193 hospitais com pelo menos 100 altas, com 22.344 readmissões não planejadas observadas e 22.356 esperadas: a recalibração no total do ano deixa a razão geral em 1,00.
 
-| Leitura pelo IC 95% | Hospitais |
-| --- | ---: |
-| Acima do esperado (IC inteiro acima de 1) | 13 |
-| Compatível com o esperado | 153 |
-| Abaixo do esperado (IC inteiro abaixo de 1) | 27 |
+O ajuste tem ROC-AUC 0,774 no teste, contra 0,791 do modelo principal: o hospital explica parte do risco. O fator de recalibração foi 0,946, porque a taxa caiu de 2023 para 2024.
+
+| Leitura pelo IC 95% | Com o ajuste de risco (atual) | Com o modelo principal (antes) |
+| --- | ---: | ---: |
+| Acima do esperado (IC inteiro acima de 1) | 28 | 13 |
+| Compatível com o esperado | 126 | 153 |
+| Abaixo do esperado (IC inteiro abaixo de 1) | 39 | 27 |
+
+Com o modelo principal, que tem o hospital como atributo, o esperado já carregava parte do efeito de cada hospital, e a razão media sobretudo a mudança do hospital em relação a 2023. Exemplo: o CNES 0000582 tinha razão 2,66 antes; com o ajuste, fica em 1,33 (IC de 1,21 a 1,47), ainda acima, mas pela metade. O maior hospital, 0000434 (28.651 altas), passa de 0,80 (abaixo) para 1,06 (IC de 1,02 a 1,10, acima).
 
 Cuidados na leitura:
 
-- **O hospital da alta é atributo do modelo** (`cnes_alta`, o de maior importância). Ver [Limitações](#o-ranking-de-hospitais-não-é-ajuste-de-risco).
+- **O ajuste só vê o que o SIH registra** (idade, sexo, diagnóstico, procedimento, caráter, permanência, UTI e histórico). Não vê gravidade clínica, exames nem condição social. Ver [Limitações](#o-ajuste-de-risco-dos-hospitais-é-limitado).
 - **O esperado é tratado como fixo** no IC; a incerteza do modelo não entra.
 - **São 193 comparações sem correção**: alguns hospitais ficam fora de 1 por acaso.
 
@@ -369,9 +373,9 @@ A comparação é só indicativa: as referências não dizem como trataram AIHs 
 - **Censura.** Entram só altas até 01/10/2024, para que os 30 dias seguintes estejam completos no SIH.
 - **Mudança de taxa.** A taxa caiu de 5,6% no treino para 5,4% no teste. O modelo superestima um pouco o risco, sobretudo no decil mais alto, e não foi recalibrado.
 
-### O ranking de hospitais não é ajuste de risco
+### O ajuste de risco dos hospitais é limitado
 
-`cnes_alta` é o atributo de maior importância do modelo. Cerca de 107 hospitais têm categoria própria (`docs/modelo.md`), então parte do efeito de cada um já está dentro do esperado, e a razão O/E deles tende a 1. A razão mede o que sobra além do que o modelo aprendeu em 2023, não o desempenho do hospital contra um padrão externo. Para comparar hospitais seria preciso um modelo de ajuste de risco sem o hospital, com variáveis clínicas que o SIH-RD não tem.
+O esperado de cada hospital vem de um modelo sem o hospital (D05), então a razão O/E compara o hospital com pacientes de perfil parecido no estado. O perfil, porém, é só o que o SIH-RD registra. Um hospital de referência recebe os casos mais graves de cada diagnóstico, e essa gravidade não aparece nos dados: ele pode ficar "acima" por isso, e não por cuidar pior. A volta também é atribuída ao hospital da alta, mesmo quando acontece em outro. A tabela serve para apontar onde olhar, não para montar um ranking de qualidade.
 
 ### ROC-AUC dos modelos anteriores
 

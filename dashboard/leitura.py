@@ -10,15 +10,15 @@ TITULO = "Como ler a tabela"
 
 COLUNAS = """
 Cada linha é um hospital, pelo CNES. A linha compara quantas altas desse hospital voltaram com
-quantas o modelo esperava.
+quantas voltariam se os pacientes dele tivessem a taxa de pacientes de perfil parecido no estado.
 
 | Coluna | O que significa |
 | --- | --- |
 | **CNES** | código do hospital da alta |
 | **Altas** | quantas altas o hospital teve no período |
 | **Observado** | quantas dessas altas voltaram ao hospital (qualquer um) sem planejamento em até 30 dias |
-| **Esperado** | quantas o modelo previa que voltassem, somando o risco de cada paciente |
-| **Razão O/E** | observado ÷ esperado. 1 = como previsto; 2 = o dobro; 0,5 = a metade |
+| **Esperado** | quantas voltariam pelo perfil dos pacientes, somando o risco de cada um num modelo sem o hospital (ajuste de risco) |
+| **Razão O/E** | observado ÷ esperado. 1 = como pacientes parecidos no estado; 2 = o dobro; 0,5 = a metade |
 | **IC 95%** | a faixa de incerteza da razão. Hospital pequeno tem faixa larga |
 | **Leitura** | "Acima" se a faixa inteira fica acima de 1, "Abaixo" se fica inteira abaixo de 1, "Compatível" se a faixa cruza o 1 |
 """
@@ -26,10 +26,10 @@ quantas o modelo esperava.
 CUIDADOS = """
 **O que a tabela não diz:**
 
-- **Ela não diz que um hospital é pior que outro.** O hospital da alta é um dos atributos do modelo.
-  Por isso, o esperado já leva em conta parte do jeito de cada hospital, e a razão mostra só o que
-  sobrou além do que o modelo aprendeu com 2023. Para comparar hospitais seria preciso um modelo de
-  ajuste de risco feito para isso, sem o hospital, e com dados clínicos que o SIH não tem.
+- **Ela não prova que um hospital é pior que outro.** O ajuste de risco compara pacientes pelo que
+  o SIH registra: idade, sexo, diagnóstico, procedimento, caráter, permanência, UTI e histórico. Ele
+  não vê gravidade clínica, exames nem condição social. Um hospital de referência recebe os casos
+  mais graves de cada diagnóstico e pode ficar "acima" por isso, não por cuidar pior.
 - **Parte dos destaques é acaso.** Muitos hospitais são testados ao mesmo tempo, então alguns ficam
   "acima" ou "abaixo" só pela sorte.
 - **A volta pode ser em outro hospital.** O observado conta a readmissão onde quer que ela aconteça.
@@ -64,7 +64,7 @@ def exemplos(tabela: pd.DataFrame) -> list[str]:
         claro = acima.loc[acima["ic95_inf"].idxmax()]
         frases.append(
             f"- {_descrever(claro)}. É o caso mais claro: mesmo o limite de baixo da faixa fica acima "
-            f"de 1. Voltaram cerca de {numero(claro['razao_oe'], 1)} vezes os pacientes que o modelo previa."
+            f"de 1. Voltaram cerca de {numero(claro['razao_oe'], 1)} vezes os pacientes esperados pelo perfil."
         )
         pequeno = acima.loc[acima["altas"].idxmin()]
         if pequeno["cnes"] != claro["cnes"]:

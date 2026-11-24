@@ -15,7 +15,9 @@ import pandas as pd
 from scipy.stats import chi2
 from sklearn.pipeline import Pipeline
 
-from readmissao_sus.modelagem import ALVO, ANO_TESTE, ATRIBUTOS, DATA_ALTA, dividir_por_tempo, preparar_atributos
+from readmissao_sus.modelagem import (
+    ALVO, ANO_TESTE, ANO_TREINO, ATRIBUTOS, DATA_ALTA, dividir_por_tempo, preparar_atributos,
+)
 
 COLUNA_HOSPITAL = "cnes_alta"
 COLUNA_PROBABILIDADE = "probabilidade"
@@ -33,13 +35,26 @@ def ic_poisson_exato(observado: np.ndarray, nivel: float = NIVEL_CONFIANCA) -> t
     return inferior, superior
 
 
-def ler_altas_teste(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
-    """Altas do teste (ANO_TESTE até o corte de censura) com os atributos e o alvo."""
+def ler_treino_e_teste(con: duckdb.DuckDBPyConnection) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Altas do treino (ANO_TREINO) e do teste (ANO_TESTE até o corte), com atributos e alvo."""
     colunas = ", ".join(dict.fromkeys((*ATRIBUTOS, ALVO, DATA_ALTA)))
     altas = con.execute(
-        f"select {colunas} from atributo_episodio where year({DATA_ALTA}) = ?", [ANO_TESTE]
+        f"select {colunas} from atributo_episodio where year({DATA_ALTA}) in (?, ?)",
+        [ANO_TREINO, ANO_TESTE],
     ).df()
-    return dividir_por_tempo(altas)[1]
+    return dividir_por_tempo(altas)
+
+
+def ler_altas_teste(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
+    """Altas do teste (ANO_TESTE até o corte de censura) com os atributos e o alvo."""
+    return ler_treino_e_teste(con)[1]
+
+
+def contar_leituras(tabela: pd.DataFrame) -> dict[str, int]:
+    """Hospitais com o IC 95% inteiro acima de 1, inteiro abaixo de 1 ou cruzando o 1."""
+    acima = int((tabela["ic95_inf"] > 1).sum())
+    abaixo = int((tabela["ic95_sup"] < 1).sum())
+    return {"acima": acima, "abaixo": abaixo, "compativel": int(len(tabela)) - acima - abaixo}
 
 
 def pontuar(pipeline: Pipeline, altas: pd.DataFrame) -> pd.DataFrame:

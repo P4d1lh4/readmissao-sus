@@ -50,4 +50,4 @@ def test_sem_hospital_acima_so_explica_as_colunas_e_os_cuidados() -> None:
 
     assert "Exemplos desta tabela" not in texto
     assert "| **Razão O/E** |" in texto
-    assert "não diz que um hospital é pior que outro" in texto
+    assert "não prova que um hospital é pior que outro" in texto

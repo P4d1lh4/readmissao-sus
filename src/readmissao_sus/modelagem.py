@@ -110,8 +110,13 @@ def _para_float32(x: np.ndarray) -> np.ndarray:
     return np.asarray(x, dtype=np.float32)
 
 
-def montar_pipeline(classificador: BaseEstimator) -> Pipeline:
+def montar_pipeline(
+    classificador: BaseEstimator, categoricos: tuple[str, ...] = ATRIBUTOS_CATEGORICOS
+) -> Pipeline:
     """Colunas de ATRIBUTOS -> pré-processamento -> classificador.
+
+    `categoricos` permite tirar uma categoria do modelo (o ajuste de risco tira `cnes_alta`); as
+    colunas fora das listas são descartadas pelo ColumnTransformer.
 
     `dias_desde_ultima_alta` é nula quando não há episódio anterior: a mediana entra no lugar
     e uma coluna indicadora diz que faltava. A saída é densa: o XGBoost leria os zeros
@@ -125,7 +130,7 @@ def montar_pipeline(classificador: BaseEstimator) -> Pipeline:
             ("float32", FunctionTransformer(_para_float32, feature_names_out="one-to-one")),
         ]
     )
-    categoricos = Pipeline(
+    categoricos_pipeline = Pipeline(
         steps=[
             ("imputador", SimpleImputer(strategy="constant", fill_value="ausente")),
             (
@@ -143,7 +148,7 @@ def montar_pipeline(classificador: BaseEstimator) -> Pipeline:
         transformers=[
             ("num", numericos, list(ATRIBUTOS_NUMERICOS)),
             ("bin", "passthrough", list(ATRIBUTOS_BINARIOS)),
-            ("cat", categoricos, list(ATRIBUTOS_CATEGORICOS)),
+            ("cat", categoricos_pipeline, list(categoricos)),
         ],
         sparse_threshold=0.0,
     )

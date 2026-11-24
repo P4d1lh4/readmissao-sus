@@ -34,13 +34,15 @@ def ler_hospitais(caminho: str) -> pd.DataFrame:
 
 def aba_hospitais(tabela: pd.DataFrame) -> None:
     st.caption(
-        "Altas de 2024 até 01/10/2024 (teste do modelo), pelo hospital da alta. Observado = readmissões "
-        "não planejadas em 30 dias; esperado = soma das probabilidades do modelo. Razão acima de 1: mais "
-        "readmissões do que o modelo esperava para aqueles pacientes. IC 95% de Poisson exato."
+        "Altas de 2024 até 01/10/2024, pelo hospital da alta. Observado = readmissões não planejadas em "
+        "30 dias; esperado = quantas voltariam se os pacientes do hospital tivessem a taxa de pacientes "
+        "de perfil parecido no estado. Razão acima de 1: mais readmissões do que pacientes parecidos "
+        "tiveram em média. IC 95% de Poisson exato."
     )
     st.caption(
-        "O CNES da alta é um dos atributos do modelo: nos hospitais com categoria própria, parte do efeito "
-        "do hospital já está no esperado, e a razão tende a ficar perto de 1."
+        "O esperado vem de um modelo de ajuste de risco sem o hospital (D05): idade, sexo, diagnóstico, "
+        "procedimento, caráter, permanência, UTI e histórico. Ele não tem gravidade clínica, que o SIH "
+        "não registra."
     )
     minimo_csv = int(tabela["altas"].min())
     minimo = st.number_input(

@@ -1,5 +1,6 @@
 """Razão O/E por hospital, IC de Poisson exato e o CSV agregado (S11)."""
 
+import json
 import sys
 from pathlib import Path
 
@@ -64,7 +65,12 @@ def test_script_grava_csv_so_com_agregados_do_teste(tmp_path: Path) -> None:
 
     assert razao_hospitais.main(argumentos + ["--dir-modelo", str(salvar_modelo_sintetico(tmp_path / "m"))]) == 0
 
+    resumo = json.loads((saida.parent / razao_hospitais.NOME_RESUMO).read_text(encoding="utf-8"))
+    assert "cnes_alta" not in resumo["atributos"]
+    assert set(resumo["leituras_ajuste"]) == {"acima", "abaixo", "compativel"}
+    assert resumo["leituras_modelo_principal"] is not None
     csv = pd.read_csv(saida, dtype={"cnes": str})
+    assert csv["esperado"].sum() == pytest.approx(csv["observado"].sum())   # recalibrado no total
     assert tuple(csv.columns) == COLUNAS_SAIDA
     assert not COLUNAS_POR_EPISODIO & set(csv.columns)
     alta = pd.to_datetime(episodios["dt_saida"])
@@ -72,3 +78,16 @@ def test_script_grava_csv_so_com_agregados_do_teste(tmp_path: Path) -> None:
     assert csv["altas"].sum() == len(teste)
     assert csv["observado"].sum() == teste[ALVO].sum()
     assert csv["cnes"].is_unique and len(csv) == teste["cnes_alta"].nunique()
+
+
+def test_script_sem_modelo_principal_so_nao_compara(tmp_path: Path) -> None:
+    episodios = episodios_sinteticos(900, seed=5)
+    banco = tmp_path / "sih.duckdb"
+    with duckdb.connect(str(banco)) as con:
+        con.execute("create table atributo_episodio as select * from episodios")
+    saida = tmp_path / "hospitais_oe.csv"
+
+    assert razao_hospitais.main(["--banco", str(banco), "--saida", str(saida), "--minimo-altas", "10",
+                                 "--dir-modelo", str(tmp_path / "sem_modelo")]) == 0
+    resumo = json.loads((tmp_path / razao_hospitais.NOME_RESUMO).read_text(encoding="utf-8"))
+    assert resumo["leituras_modelo_principal"] is None

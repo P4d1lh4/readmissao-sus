@@ -1,11 +1,18 @@
-"""Episódios sintéticos no formato de atributo_episodio, para os testes do modelo (S10)."""
+"""Episódios sintéticos no formato de atributo_episodio e um modelo salvo, para os testes (S10, S11)."""
 
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from joblib import dump
+from sklearn.linear_model import LogisticRegression
+
+from readmissao_sus.modelagem import ATRIBUTOS, alvo, montar_pipeline, preparar_atributos
+from readmissao_sus.treino import ARQUIVO_METADATA, ARQUIVO_MODELO
 
 INICIO = date(2023, 1, 1)
 FIM = date(2024, 12, 31)
@@ -62,3 +69,14 @@ def episodios_sinteticos(n: int, seed: int = 0) -> pd.DataFrame:
             "dias_ate_readmissao": np.where(readmissao, rng.integers(0, 31, n), np.nan),
         }
     )
+
+
+def salvar_modelo_sintetico(dir_modelo: Path, limiar: float = 0.2, n: int = 600, seed: int = 0) -> Path:
+    """Regressão logística treinada em episódios sintéticos, gravada como em models/ (S11)."""
+    episodios = episodios_sinteticos(n, seed=seed)
+    pipeline = montar_pipeline(LogisticRegression(max_iter=500)).fit(preparar_atributos(episodios), alvo(episodios))
+    dir_modelo.mkdir(parents=True, exist_ok=True)
+    dump(pipeline, dir_modelo / ARQUIVO_MODELO)
+    metadata = {"modelo": "LogisticRegression", "atributos": list(ATRIBUTOS), "limiar": limiar}
+    (dir_modelo / ARQUIVO_METADATA).write_text(json.dumps(metadata), encoding="utf-8")
+    return dir_modelo

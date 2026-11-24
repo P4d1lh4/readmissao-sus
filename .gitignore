@@ -20,6 +20,8 @@ models/
 reports/*
 !reports/metrics.json
 !reports/importancia_atributos.csv
+# Razão O/E por hospital (S11): agregado por CNES, sem nada por episódio
+!reports/hospitais_oe.csv
 # Resultados da S10 (alvo readmissao_30d), guardados para comparar com a S13
 !reports/metrics_s10.json
 !reports/importancia_atributos_s10.csv

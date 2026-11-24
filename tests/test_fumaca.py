@@ -2,7 +2,10 @@ import importlib
 
 import readmissao_sus
 
-DEPENDENCIAS = ("pandas", "pyarrow", "duckdb", "pyreaddbc", "sklearn", "xgboost", "joblib")
+DEPENDENCIAS = (
+    "pandas", "pyarrow", "duckdb", "pyreaddbc", "sklearn", "xgboost", "joblib",
+    "scipy", "fastapi", "uvicorn", "httpx", "streamlit", "plotly",
+)
 
 
 def test_pacote_importa_e_tem_versao():

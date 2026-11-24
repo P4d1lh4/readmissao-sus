@@ -19,13 +19,15 @@ Previsão de readmissão hospitalar em 30 dias com dados públicos do SIH/SUS (P
 
 ```
 readmissao-sus/
+├── api/               # API FastAPI do Sumário de Alta com risco (S11)
+├── dashboard/         # dashboard Streamlit (S11): aba Hospitais
 ├── data/              # dados baixados e processados (fora do git)
 ├── docs/              # planejamento do projeto
 ├── fhir/pacotes/      # pacotes FHIR (.tgz) usados na validação
 ├── fhir/exemplos/     # Sumário de Alta de exemplo: um válido e um propositalmente inválido
 ├── fhir/saida/        # Sumários de Alta gerados de episódios reais (fora do git)
 ├── models/           # modelo treinado e metadata (fora do git)
-├── reports/          # métricas agregadas do modelo (só metrics.json e importancia_atributos.csv vão para o git)
+├── reports/          # agregados do modelo e dos hospitais (só os listados no .gitignore vão para o git)
 ├── sql/               # SQL versionado do banco DuckDB (staging, internações, coorte, episódios)
 ├── src/readmissao_sus/  # código do pacote
 ├── tests/             # testes com pytest
@@ -90,6 +92,37 @@ Depois de `construir_banco.py`, para treinar o modelo de readmissão em 30 dias 
 ```
 
 Leva cerca de 10 minutos em CPU de 12 threads (`random_state = 42`). O script lê `atributo_episodio`, usa o alvo `readmissao_nao_planejada_30d` (S13), treina com as altas de 2023 e testa nas de 2024 até o corte de censura (01/10/2024). Grava o pipeline e o limiar em `models/` (fora do git) e só agregados em `reports/metrics.json` e `reports/importancia_atributos.csv`. Nenhuma previsão por episódio é gravada. Atributos que entram e ficam fora, a validação cruzada e as checagens estão em `docs/modelo.md`; os números estão em "Resultados do modelo (S13)", no fim deste README. Os resultados da S10, com o alvo antigo, ficam em `reports/metrics_s10.json` e `reports/importancia_atributos_s10.csv`.
+
+### API e dashboard (S11)
+
+Os dois leem só o que fica fora do git (`data/sih.duckdb`, `data/parquet/`, `models/`) ou agregados de `reports/`. Rode antes `construir_banco.py` e `treinar.py`.
+
+**API** (FastAPI). Na raiz do projeto:
+
+```powershell
+.venv\Scripts\python -m uvicorn api.main:app --port 8000
+```
+
+- `GET /saude`: `{"status": "ok", "modelo": ..., "limiar": ...}`, ou `"indisponivel"` se faltar banco, Parquet ou modelo.
+- `GET /episodios/{id}/sumario-alta`: o Bundle FHIR do Sumário de Alta da S08 (`bundle`) mais `probabilidade` de readmissão não planejada em 30 dias (modelo da S13), `limiar`, `acima_do_limiar` e `modelo`. Responde 404 se o episódio não existe ou não é elegível (sem linha em `atributo_episodio`), 422 se o hospital da alta não tem CNPJ ou município nos Parquet (o Bundle não pode ser montado) e 503 sem banco ou modelo.
+
+Documentação interativa em `http://localhost:8000/docs`. O banco é aberto só para leitura, uma vez, e cada requisição usa um cursor próprio. Os caminhos mudam com `READMISSAO_BANCO`, `READMISSAO_PARQUET` e `READMISSAO_MODELOS`. A API devolve dados de um episódio real: é para uso local, sem autenticação, e não deve ser exposta na rede.
+
+**Razão O/E por hospital.** Gera `reports/hospitais_oe.csv` (vai para o git; só agregados por CNES):
+
+```powershell
+.venv\Scripts\python scripts\razao_hospitais.py
+```
+
+O script pontua em memória as altas do teste (2024 até 01/10/2024) com o modelo de `models/` e agrupa pelo hospital da alta (`cnes_alta`). Colunas: `cnes`, `altas`, `observado` (readmissões não planejadas em 30 dias), `esperado` (soma das probabilidades), `razao_oe` e `ic95_inf`/`ic95_sup` (IC 95% de Poisson exato para o observado, dividido pelo esperado). Entram só hospitais com pelo menos 100 altas (`--minimo-altas`). Nenhuma probabilidade por episódio é gravada.
+
+**Dashboard** (Streamlit):
+
+```powershell
+.venv\Scripts\python -m streamlit run dashboard\app.py
+```
+
+Abre em `http://localhost:8501`. A aba **Hospitais** lê só `reports/hospitais_oe.csv`: um filtro de mínimo de altas, o gráfico da razão O/E com o IC 95% de cada hospital (laranja: IC inteiro acima de 1; azul: inteiro abaixo; cinza: compatível com o esperado) e a tabela. Nada por episódio aparece no dashboard.
 
 ### Validar um documento FHIR (validador HL7 em Docker)
 
@@ -226,3 +259,19 @@ Importância por permutação (queda de ROC-AUC no teste, 50 mil episódios): `c
 > - **Readmissões em 0–1 dia.** São 28,6% dos positivos do teste (8.563): a volta começou no dia da alta ou no seguinte, muitas vezes no mesmo hospital. A D03, que decide se elas são o mesmo episódio, continua pendente. Sem elas, o teste fica em **0,784**.
 >
 > Conclusão: não foi achado vazamento de informação posterior à alta. O que sobra acima de 0,80 vem da diferença entre eletivo e urgência e das voltas em 0–1 dia, que a D03 pode juntar ao episódio. Mesmo assim, o número não deve ser comparado com os 0,64–0,68 do Health-Project. Lá, o alvo, a base e o linkage são outros.
+
+## Hospitais: razão observado/esperado (S11)
+
+`reports/hospitais_oe.csv`, gerado em 24/11/2026 com o modelo da S13. Das 430.684 altas do teste, 427.808 são de 193 hospitais com pelo menos 100 altas. Nesses hospitais, o observado soma 29.651 readmissões não planejadas e o esperado, 31.436: razão geral de 0,94, porque a taxa caiu de 7,5% no treino para 6,9% no teste.
+
+| Leitura pelo IC 95% | Hospitais |
+| --- | ---: |
+| Acima do esperado (IC inteiro acima de 1) | 16 |
+| Compatível com o esperado | 138 |
+| Abaixo do esperado (IC inteiro abaixo de 1) | 39 |
+
+Cuidados na leitura:
+
+- **O hospital da alta é atributo do modelo** (`cnes_alta`, o de maior importância). Os cerca de 107 hospitais com categoria própria têm parte do seu efeito já dentro do esperado, e a razão deles tende a 1. A razão mede o que sobra além do que o modelo aprendeu em 2023, não o desempenho do hospital contra um padrão externo. Um modelo de ajuste de risco sem o hospital daria outra leitura.
+- **O esperado é tratado como fixo** no IC; a incerteza do modelo não entra.
+- **São 193 comparações sem correção**: alguns hospitais ficam fora de 1 por acaso.

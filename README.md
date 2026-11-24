@@ -1,17 +1,20 @@
 # Readmissão SUS
 
-Previsão de readmissão hospitalar em 30 dias com dados públicos do SIH/SUS (Pernambuco, 2023–2024) e geração do Sumário de Alta em FHIR no padrão da RNDS.
+Previsão de readmissão hospitalar não planejada em 30 dias com dados públicos do SIH/SUS (Pernambuco, 2023–2024) e geração do Sumário de Alta em FHIR no padrão da RNDS.
 
 > **Aviso:** este é um projeto de estudo e portfólio feito sobre dados públicos e anonimizados do DATASUS. Não é ferramenta clínica e não deve apoiar decisões sobre pacientes reais.
 >
 > **Não há envio real à RNDS.** Os documentos FHIR são gerados e validados apenas localmente, com o validador oficial da HL7 e os perfis publicados. Nenhum dado é transmitido à Rede Nacional de Dados em Saúde.
 
+As limitações do projeto estão na seção [Limitações](#limitações), no fim deste README.
+
 ## Objetivo
 
 1. Baixar as AIHs reduzidas (RD) do SIH/SUS de Pernambuco, de 2023 e 2024, direto do FTP do DATASUS.
-2. Montar a base de internações e identificar readmissões em até 30 dias após a alta.
+2. Montar a base de internações e identificar readmissões não planejadas em até 30 dias após a alta.
 3. Treinar e avaliar um modelo que estima o risco de readmissão.
 4. Gerar, para cada alta, um Sumário de Alta em FHIR conforme os perfis da RNDS e validá-lo localmente.
+5. Servir o Sumário de Alta com o risco numa API local e mostrar a razão observado/esperado por hospital num dashboard.
 
 É a segunda versão do projeto Health-Project, que usava um conjunto de dados de diabetes dos EUA. Esta versão troca a fonte por dados brasileiros e acrescenta a interoperabilidade com FHIR.
 
@@ -19,23 +22,34 @@ Previsão de readmissão hospitalar em 30 dias com dados públicos do SIH/SUS (P
 
 ```
 readmissao-sus/
-├── api/               # API FastAPI do Sumário de Alta com risco (S11)
-├── dashboard/         # dashboard Streamlit (S11): aba Hospitais
+├── api/               # API FastAPI do Sumário de Alta com risco
+├── dashboard/         # dashboard Streamlit: aba Hospitais
 ├── data/              # dados baixados e processados (fora do git)
-├── docs/              # planejamento do projeto
+├── docs/              # decisões, coorte, atributos, modelo e inventário do SIH
 ├── fhir/pacotes/      # pacotes FHIR (.tgz) usados na validação
 ├── fhir/exemplos/     # Sumário de Alta de exemplo: um válido e um propositalmente inválido
 ├── fhir/saida/        # Sumários de Alta gerados de episódios reais (fora do git)
-├── models/           # modelo treinado e metadata (fora do git)
-├── reports/          # agregados do modelo e dos hospitais (só os listados no .gitignore vão para o git)
-├── sql/               # SQL versionado do banco DuckDB (staging, internações, coorte, episódios)
+├── models/            # modelo treinado e metadata (fora do git)
+├── reports/           # agregados do modelo e dos hospitais (só os listados no .gitignore vão para o git)
+├── scripts/           # comandos da seção "Como rodar"
+├── sql/               # SQL versionado do banco DuckDB (staging, internações, coorte, episódios, atributos)
 ├── src/readmissao_sus/  # código do pacote
 ├── tests/             # testes com pytest
 ├── pytest.ini
 └── requirements.txt
 ```
 
-Os arquivos de dados (`.dbc`, `.dbf`, `.parquet`, `.duckdb`) e as pastas `data/` e `fhir/saida/` nunca vão para o git.
+Os arquivos de dados (`.dbc`, `.dbf`, `.parquet`, `.duckdb`) e as pastas `data/`, `models/` e `fhir/saida/` nunca vão para o git. Em `reports/` e `docs/` só ficam agregados.
+
+Documentos de apoio:
+
+| Arquivo | Conteúdo |
+| --- | --- |
+| `docs/decisoes.md` | D01 linkage, D02 perfil FHIR, D03 contíguas sem motivo (pendente), D04 readmissões programadas |
+| `docs/coorte.md` | filtros, marcas, sal da chave e contagens do banco |
+| `docs/atributos.md` | definição e contagens de cada atributo do modelo |
+| `docs/modelo.md` | atributos que entram e ficam fora, validação cruzada e checagens |
+| `docs/inventario-sih.md` | colunas do SIH-RD e fontes do dicionário |
 
 ## Como rodar
 
@@ -47,17 +61,34 @@ py -3.13 -m venv .venv
 .venv\Scripts\python -m pytest -q
 ```
 
-Para baixar o SIH-RD de PE (2023–2024) para `data/raw/`, convertê-lo em Parquet (`data/parquet/`) e gerar o inventário de colunas (`docs/inventario-sih.md`):
+Os comandos abaixo seguem a ordem do pipeline. Todos rodam na raiz do projeto.
+
+| Passo | Comando | Argumentos |
+| --- | --- | --- |
+| 1. Baixar o SIH-RD | `scripts\baixar_sih.py` | nenhum |
+| 2. Medir o linkage | `scripts\medir_linkage.py` | nenhum |
+| 3. Construir o banco | `scripts\construir_banco.py` | `--contiguas-sem-motivo`, `--sem-permanencia`, `--eletiva-nao-programada` |
+| 4. Baixar os pacotes FHIR | `scripts\baixar_pacotes_fhir.py` | nenhum |
+| 5. Treinar o modelo | `scripts\treinar.py` | `--banco`, `--dir-modelo`, `--dir-relatorios`, `--random-state`, `--fracao-cv` |
+| 6. Razão O/E por hospital | `scripts\razao_hospitais.py` | `--banco`, `--dir-modelo`, `--saida`, `--minimo-altas` |
+| 7. Gerar Sumários de Alta | `scripts\gerar_sumarios.py` | `--banco`, `--saida`, `--sem-validar`, `--sem-terminologia` |
+| — Validar um documento FHIR | `scripts\validar_fhir.py <arquivo ou pasta>` | `--perfil`, `--sem-terminologia`, `--log` |
+
+Os scripts com argumentos aceitam `--help`. Os três sem argumentos são idempotentes: rodar de novo não baixa nem converte o que já existe.
+
+### 1. Baixar o SIH-RD
+
+Baixa o SIH-RD de PE (2023–2024) para `data/raw/`, converte em Parquet (`data/parquet/`) e gera o inventário de colunas (`docs/inventario-sih.md`):
 
 ```powershell
 .venv\Scripts\python scripts\baixar_sih.py
 ```
 
-O script é idempotente: rodar de novo não baixa nem converte o que já existe.
-
 Os arquivos `.dbc` do DATASUS são lidos com `pyreaddbc`, que funciona no Windows (o PySUS não funciona bem nesse sistema).
 
-Para medir a viabilidade do linkage (chave NASC + SEXO + CEP + MUNIC_RES, guardada só como hash) e atualizar os números em `docs/decisoes.md`:
+### 2. Medir o linkage
+
+Mede a viabilidade do linkage (chave NASC + SEXO + CEP + MUNIC_RES, guardada só como hash) e atualiza os números em `docs/decisoes.md` (D01):
 
 ```powershell
 .venv\Scripts\python scripts\medir_linkage.py
@@ -65,64 +96,58 @@ Para medir a viabilidade do linkage (chave NASC + SEXO + CEP + MUNIC_RES, guarda
 
 O documento recebe só agregados; nenhuma chave ou registro por internação é gravado.
 
-Para recriar do zero o banco DuckDB `data/sih.duckdb` (staging tipado, internações, coorte de altas e episódios, com o SQL versionado em `sql/`) e atualizar as contagens de `docs/coorte.md`:
+### 3. Construir o banco
+
+Recria do zero o banco DuckDB `data/sih.duckdb` (staging tipado, internações, coorte de altas, episódios e atributos, com o SQL versionado em `sql/`) e atualiza as contagens de `docs/coorte.md` e `docs/atributos.md`:
 
 ```powershell
 .venv\Scripts\python scripts\construir_banco.py
 ```
 
-Leva cerca de 5 minutos. O banco junta em episódios as internações contíguas após transferência ou permanência (S07); a regra para alta seguida de nova AIH no mesmo dia ou no seguinte aguarda decisão (D03 em `docs/decisoes.md`) e muda com `--contiguas-sem-motivo nenhuma|mesmo_hospital|todas` (padrão `nenhuma`). A volta eletiva conta como programada (D04); `--eletiva-nao-programada` deixa só a lista de procedimentos e CIDs sempre programados. O banco guarda a chave de linkage como SHA-256 com sal; o sal vem de `READMISSAO_SAL_CHAVE` ou de `data/sal_chave.txt` (criado na primeira vez). Banco, sal e chave ficam em `data/`, fora do git. Filtros, marcas e o motivo do sal estão em `docs/coorte.md`.
+Leva cerca de 5 minutos.
 
-O mesmo comando monta a tabela `atributo_episodio` (S09, `sql/06_atributos.sql`): uma linha por episódio elegível, com o alvo `readmissao_nao_planejada_30d` (D04: readmissão em 30 dias sem as voltas programadas; o alvo antigo, `readmissao_30d`, fica como coluna auxiliar), os atributos do paciente e do episódio e o histórico da mesma chave nos 365 dias antes da entrada, sem vazamento. As definições, as fontes dos códigos (capítulo da CID-10, grupo SIGTAP) e as contagens agregadas por atributo ficam em `docs/atributos.md`.
+- **Episódios.** O banco junta num episódio as internações contíguas após transferência ou permanência. A regra para alta seguida de nova AIH no mesmo dia ou no seguinte aguarda decisão (D03) e muda com `--contiguas-sem-motivo nenhuma|mesmo_hospital|todas` (padrão `nenhuma`).
+- **Alvo.** `readmissao_nao_planejada_30d`: readmissão em 30 dias sem as voltas programadas. A volta eletiva conta como programada (D04); `--eletiva-nao-programada` deixa só a lista de procedimentos e CIDs sempre programados. O alvo antigo, `readmissao_30d`, fica como coluna auxiliar.
+- **Atributos.** A tabela `atributo_episodio` (`sql/06_atributos.sql`) tem uma linha por episódio elegível: o alvo, os atributos do paciente e do episódio e o histórico da mesma chave nos 365 dias antes da entrada, sem vazamento. As definições e as fontes dos códigos (capítulo da CID-10, grupo SIGTAP) estão em `docs/atributos.md`.
+- **Chave.** O banco guarda a chave de linkage como SHA-256 com sal. O sal vem de `READMISSAO_SAL_CHAVE` ou de `data/sal_chave.txt` (criado na primeira vez). Banco, sal e chave ficam em `data/`, fora do git. O motivo do sal está em `docs/coorte.md`.
 
-Para baixar os pacotes FHIR do Sumário de Alta para `fhir/pacotes/` (versão e SHA-256 fixos; rodar de novo não baixa nada):
+### 4. Baixar os pacotes FHIR
+
+Baixa os pacotes FHIR do Sumário de Alta para `fhir/pacotes/` (versão e SHA-256 fixos):
 
 ```powershell
 .venv\Scripts\python scripts\baixar_pacotes_fhir.py
 ```
 
-Não há perfil FHIR nacional do Sumário de Alta publicado. O projeto usa o perfil `sumario-alta` do guia CORE da SES-GO (versão 1.2.6, **rascunho**, ambiente de homologação) com os artefatos da RNDS do pacote `br.go.ses.reds-go`. Os motivos e as URLs canônicas estão na decisão D02 de `docs/decisoes.md`.
+Não há perfil FHIR nacional do Sumário de Alta publicado. O projeto usa o perfil `sumario-alta` do guia CORE da SES-GO (versão 1.2.6, **rascunho**, ambiente de homologação) com os artefatos da RNDS do pacote `br.go.ses.reds-go`. Os motivos e as URLs canônicas estão na D02 de `docs/decisoes.md`.
 
-### Treinar o modelo (S10, alvo da S13)
+### 5. Treinar o modelo
 
-Depois de `construir_banco.py`, para treinar o modelo de readmissão em 30 dias com validação temporal:
+Depois de `construir_banco.py`, treina o modelo com validação temporal:
 
 ```powershell
 .venv\Scripts\python scripts\treinar.py
 ```
 
-Leva cerca de 10 minutos em CPU de 12 threads (`random_state = 42`). O script lê `atributo_episodio`, usa o alvo `readmissao_nao_planejada_30d` (S13), treina com as altas de 2023 e testa nas de 2024 até o corte de censura (01/10/2024). Grava o pipeline e o limiar em `models/` (fora do git) e só agregados em `reports/metrics.json` e `reports/importancia_atributos.csv`. Nenhuma previsão por episódio é gravada. Atributos que entram e ficam fora, a validação cruzada e as checagens estão em `docs/modelo.md`; os números estão em "Resultados do modelo (S13)", no fim deste README. Os resultados da S10, com o alvo antigo, ficam em `reports/metrics_s10.json` e `reports/importancia_atributos_s10.csv`.
+Leva cerca de 10 minutos em CPU de 12 threads (`random_state = 42`). O script lê `atributo_episodio`, usa o alvo `readmissao_nao_planejada_30d`, treina com as altas de 2023 e testa nas de 2024 até o corte de censura (01/10/2024). Grava o pipeline e o limiar em `models/` (fora do git) e só agregados em `reports/metrics.json` e `reports/importancia_atributos.csv`. Nenhuma previsão por episódio é gravada. Os números estão em [Resultados do modelo](#resultados-do-modelo). Os resultados do primeiro modelo, com o alvo antigo (`readmissao_30d`, S10), ficam em `reports/metrics_s10.json` e `reports/importancia_atributos_s10.csv`, para comparação.
 
-### API e dashboard (S11)
+### 6. Razão O/E por hospital
 
-Os dois leem só o que fica fora do git (`data/sih.duckdb`, `data/parquet/`, `models/`) ou agregados de `reports/`. Rode antes `construir_banco.py` e `treinar.py`.
-
-**API** (FastAPI). Na raiz do projeto:
-
-```powershell
-.venv\Scripts\python -m uvicorn api.main:app --port 8000
-```
-
-- `GET /saude`: `{"status": "ok", "modelo": ..., "limiar": ...}`, ou `"indisponivel"` se faltar banco, Parquet ou modelo.
-- `GET /episodios/{id}/sumario-alta`: o Bundle FHIR do Sumário de Alta da S08 (`bundle`) mais `probabilidade` de readmissão não planejada em 30 dias (modelo da S13), `limiar`, `acima_do_limiar` e `modelo`. Responde 404 se o episódio não existe ou não é elegível (sem linha em `atributo_episodio`), 422 se o hospital da alta não tem CNPJ ou município nos Parquet (o Bundle não pode ser montado) e 503 sem banco ou modelo.
-
-Documentação interativa em `http://localhost:8000/docs`. O banco é aberto só para leitura, uma vez, e cada requisição usa um cursor próprio. Os caminhos mudam com `READMISSAO_BANCO`, `READMISSAO_PARQUET` e `READMISSAO_MODELOS`. A API devolve dados de um episódio real: é para uso local, sem autenticação, e não deve ser exposta na rede.
-
-**Razão O/E por hospital.** Gera `reports/hospitais_oe.csv` (vai para o git; só agregados por CNES):
+Gera `reports/hospitais_oe.csv` (vai para o git; só agregados por CNES):
 
 ```powershell
 .venv\Scripts\python scripts\razao_hospitais.py
 ```
 
-O script pontua em memória as altas do teste (2024 até 01/10/2024) com o modelo de `models/` e agrupa pelo hospital da alta (`cnes_alta`). Colunas: `cnes`, `altas`, `observado` (readmissões não planejadas em 30 dias), `esperado` (soma das probabilidades), `razao_oe` e `ic95_inf`/`ic95_sup` (IC 95% de Poisson exato para o observado, dividido pelo esperado). Entram só hospitais com pelo menos 100 altas (`--minimo-altas`). Nenhuma probabilidade por episódio é gravada.
+O script pontua em memória as altas do teste (2024 até 01/10/2024) com o modelo de `models/` e agrupa pelo hospital da alta (`cnes_alta`). Colunas: `cnes`, `altas`, `observado` (readmissões não planejadas em 30 dias), `esperado` (soma das probabilidades), `razao_oe` e `ic95_inf`/`ic95_sup` (IC 95% de Poisson exato para o observado, dividido pelo esperado). Entram só hospitais com pelo menos 100 altas (`--minimo-altas`). Nenhuma probabilidade por episódio é gravada. Os números estão em [Hospitais](#hospitais-razão-observadoesperado).
 
-**Dashboard** (Streamlit):
+### 7. Gerar Sumários de Alta
 
 ```powershell
-.venv\Scripts\python -m streamlit run dashboard\app.py
+.venv\Scripts\python scripts\gerar_sumarios.py
 ```
 
-Abre em `http://localhost:8501`. A aba **Hospitais** lê só `reports/hospitais_oe.csv`: um filtro de mínimo de altas, o gráfico da razão O/E com o IC 95% de cada hospital (laranja: IC inteiro acima de 1; azul: inteiro abaixo; cinza: compatível com o esperado) e a tabela. Nada por episódio aparece no dashboard.
+O script escolhe 20 episódios do banco e grava um Bundle FHIR por episódio em `fhir/saida/`. Essa pasta fica fora do git, porque os Bundles vêm de dados reais do SIH. Depois o script valida a pasta inteira numa só chamada do validador. `--sem-validar` só gera os arquivos. Como o Bundle é montado está em [Sumário de Alta em FHIR](#sumário-de-alta-em-fhir).
 
 ### Validar um documento FHIR (validador HL7 em Docker)
 
@@ -147,21 +172,44 @@ Uma pasta também pode ser validada. Todos os `.json` dela passam numa única ex
 .venv\Scripts\python scripts\validar_fhir.py fhir\saida
 ```
 
-### Sumário de Alta a partir do episódio (S08)
-
-`src/readmissao_sus/fhir_sumario.py` transforma um episódio (S07) num Bundle do tipo `document`. O Bundle tem Composition (`sumario-alta`), Patient, Encounter, Organization, Practitioner, um Condition por CID-10 e um Procedure por AIH, com os perfis da D02. A construção (`montar_bundle`) é uma função pura, testada sem banco. A leitura dos episódios fica em `src/readmissao_sus/episodio_leitura.py`, e os mapeamentos de código ficam em `src/readmissao_sus/sih_fhir_mapa.py`.
+Os testes de integração (rodam o validador de verdade; pulados se o Docker estiver ausente ou parado) ficam fora da suíte padrão:
 
 ```powershell
-.venv\Scripts\python scripts\gerar_sumarios.py
+.venv\Scripts\python -m pytest -m integracao
 ```
 
-O script escolhe 20 episódios de `coorte_episodio` e grava um Bundle por episódio em `fhir/saida/`. Essa pasta fica fora do git, porque os Bundles vêm de dados reais do SIH. Depois o script valida a pasta inteira numa só chamada do validador. `--sem-validar` só gera os arquivos.
+### API e dashboard
 
-A amostra é estratificada e determinística (ordem por `md5(episodio_id)` em cada estrato). Os estratos são: episódio simples eletivo e de urgência dos dois sexos, acidente (`CAR_INT` 05/06), menor de 1 ano, longa permanência (AIH 5), saída final por transferência, transferência entre hospitais (urgência e eletivo), permanência (urgência e eletivo) e transferência com permanência. Entram só episódios cujos códigos existem nos CodeSystems do pacote da RNDS e cujo hospital da alta tem CNPJ e município nos Parquet. Em toda a base, só 4 internações têm CID fora do BRCID10 e 902 têm procedimento fora do BRTabelaSUS.
+Os dois leem só o que fica fora do git (`data/sih.duckdb`, `data/parquet/`, `models/`) ou agregados de `reports/`. Rode antes `construir_banco.py`, `treinar.py` e, para o dashboard, `razao_hospitais.py`.
+
+**API** (FastAPI):
+
+```powershell
+.venv\Scripts\python -m uvicorn api.main:app --port 8000
+```
+
+- `GET /saude`: `{"status": "ok", "modelo": ..., "limiar": ...}`, ou `"indisponivel"` se faltar banco, Parquet ou modelo.
+- `GET /episodios/{id}/sumario-alta`: o Bundle FHIR do Sumário de Alta (`bundle`) mais `probabilidade` de readmissão não planejada em 30 dias, `limiar`, `acima_do_limiar` e `modelo`. Responde 404 se o episódio não existe ou não é elegível (sem linha em `atributo_episodio`), 422 se o hospital da alta não tem CNPJ ou município nos Parquet (o Bundle não pode ser montado) e 503 sem banco ou modelo.
+
+Documentação interativa em `http://localhost:8000/docs`. O banco é aberto só para leitura, uma vez, e cada requisição usa um cursor próprio. Os caminhos mudam com `READMISSAO_BANCO`, `READMISSAO_PARQUET` e `READMISSAO_MODELOS`. A API devolve dados de um episódio real: é para uso local, sem autenticação, e não deve ser exposta na rede.
+
+**Dashboard** (Streamlit):
+
+```powershell
+.venv\Scripts\python -m streamlit run dashboard\app.py
+```
+
+Abre em `http://localhost:8501`. A aba **Hospitais** lê só `reports/hospitais_oe.csv`: um filtro de mínimo de altas, o gráfico da razão O/E com o IC 95% de cada hospital (laranja: IC inteiro acima de 1; azul: inteiro abaixo; cinza: compatível com o esperado) e a tabela. Nada por episódio aparece no dashboard.
+
+## Sumário de Alta em FHIR
+
+`src/readmissao_sus/fhir_sumario.py` transforma um episódio num Bundle do tipo `document`. O Bundle tem Composition (`sumario-alta`), Patient, Encounter, Organization, Practitioner, um Condition por CID-10 e um Procedure por AIH, com os perfis da D02. A construção (`montar_bundle`) é uma função pura, testada sem banco. A leitura dos episódios fica em `src/readmissao_sus/episodio_leitura.py`, e os mapeamentos de código ficam em `src/readmissao_sus/sih_fhir_mapa.py`.
+
+A amostra de `gerar_sumarios.py` é estratificada e determinística (ordem por `md5(episodio_id)` em cada estrato). Os estratos são: episódio simples eletivo e de urgência dos dois sexos, acidente (`CAR_INT` 05/06), menor de 1 ano, longa permanência (AIH 5), saída final por transferência, transferência entre hospitais (urgência e eletivo), permanência (urgência e eletivo) e transferência com permanência. Entram só episódios cujos códigos existem nos CodeSystems do pacote da RNDS e cujo hospital da alta tem CNPJ e município nos Parquet. Em toda a base, só 4 internações têm CID fora do BRCID10 e 902 têm procedimento fora do BRTabelaSUS.
 
 Resultado em 23/11/2026, com terminologia (tx.fhir.org): **20 de 20 Bundles válidos, 0 erro**. Cada arquivo tem 2 avisos e 2 ou 3 mensagens conhecidas do perfil (as da D02). Os 2 avisos são a invariante `NumeroTelefoneValido` no telefone do hospital e no do profissional: o SIH não tem telefone, e o valor vai como ausente (ver abaixo). São avisos do documento, não do perfil, e por isso não entram em `MENSAGENS_CONHECIDAS`.
 
-#### Mapeamento campo do SIH -> elemento FHIR
+### Mapeamento campo do SIH -> elemento FHIR
 
 | Campo do SIH-RD | Origem | Elemento FHIR | Regra |
 | --- | --- | --- | --- |
@@ -190,35 +238,29 @@ Resultado em 23/11/2026, com terminologia (tx.fhir.org): **20 de 20 Bundles vál
 - data de nascimento do paciente: aproximada pela idade (tabela acima);
 - data de nascimento do profissional: a invariante `DataComPrecisaoDeDia` exige uma data com dia. Vai `1900-01-01`, num profissional que já é um marcador.
 
-**Paciente sintético.** O SIH-RD público não tem CNS, CPF nem nome, e o perfil `individuo` exige CPF e CNS (fatiamento fechado, 2..2). O CNS é um número sintético de 15 dígitos derivado da chave de linkage (SHA-256 com sal; S06). A mesma pessoa tem o mesmo CNS em todos os episódios. O número começa com 0, que nenhum CNS real usa (os definitivos começam com 1 ou 2; os provisórios, com 7, 8 ou 9), então nunca é o cartão de alguém. O nome é "Paciente Sintético" seguido de 8 caracteres de outro hash da chave. NASC e CEP não são lidos: o banco não os guarda em claro, e a leitura dos Parquet seleciona só `CGC_HOSP`, `CNPJ_MANT`, `MUNIC_MOV`, `RACA_COR` e `NACIONAL`.
+**Paciente sintético.** O SIH-RD público não tem CNS, CPF nem nome, e o perfil `individuo` exige CPF e CNS (fatiamento fechado, 2..2). O CNS é um número sintético de 15 dígitos derivado da chave de linkage (SHA-256 com sal). A mesma pessoa tem o mesmo CNS em todos os episódios. O número começa com 0, que nenhum CNS real usa (os definitivos começam com 1 ou 2; os provisórios, com 7, 8 ou 9), então nunca é o cartão de alguém. O nome é "Paciente Sintético" seguido de 8 caracteres de outro hash da chave. NASC e CEP não são lidos: o banco não os guarda em claro, e a leitura dos Parquet seleciona só `CGC_HOSP`, `CNPJ_MANT`, `MUNIC_MOV`, `RACA_COR` e `NACIONAL`.
 
 **Profissional.** O perfil exige um profissional como autor e como participante do Encounter, mas o SIH-RD não identifica o médico. Todos os Bundles usam o mesmo Practitioner "Profissional Não Identificado", com sexo `unknown`.
 
 **Episódios com várias AIHs** (transferência, permanência) viram um único Encounter. O período vai da entrada da primeira AIH à saída da última. O caráter vem da primeira AIH, e o desfecho, da última. O hospital da alta é o `serviceProvider` e o autor. Os outros hospitais aparecem só na narrativa e na extensão obrigatória de evolução do Encounter, com o CNES e as datas de cada AIH. Essa extensão também diz que o SIH não traz a evolução clínica. Cada AIH tem seu Procedure.
 
-Os testes de integração (rodam o validador de verdade; pulados se o Docker estiver ausente ou parado) ficam fora da suíte padrão:
+## Resultados do modelo
 
-```powershell
-.venv\Scripts\python -m pytest -m integracao
-```
-
-## Resultados do modelo (S13)
-
-Treino de 23/11/2026 com `.venv\Scripts\python scripts\treinar.py` (padrões: `--fracao-cv 0.5`, `--random-state 42`), 10 minutos em CPU de 12 threads. O protocolo é o da S10; só muda o alvo. Agora é `readmissao_nao_planejada_30d`: a volta eletiva ou com procedimento ou CID sempre programado não conta (D04 em `docs/decisoes.md`). Os números completos estão em `reports/metrics.json`; os da S10, em `reports/metrics_s10.json`; as escolhas, em `docs/modelo.md`.
+Treino de 23/11/2026 com `.venv\Scripts\python scripts\treinar.py` (padrões: `--fracao-cv 0.5`, `--random-state 42`), 10 minutos em CPU de 12 threads. O alvo é `readmissao_nao_planejada_30d`: a volta eletiva ou com procedimento ou CID sempre programado não conta (D04). Ao lado ficam os números do primeiro modelo (S10), com o mesmo protocolo e o alvo antigo, `readmissao_30d`, que contava as voltas programadas. Os números completos estão em `reports/metrics.json` e `reports/metrics_s10.json`; as escolhas, em `docs/modelo.md`.
 
 Divisão temporal: **treino** com as 533.083 altas de 2023 (436.823 chaves) e **teste** com as 430.684 altas de 2024 até 01/10/2024 (357.355 chaves). 39.435 chaves têm altas nos dois anos, como teriam em uso. A validação cruzada usa 50% das chaves do treino (266.536 episódios), em 5 folds agrupados pela chave.
 
 Validação cruzada no treino (5 folds, média ± desvio):
 
-| Modelo | ROC-AUC S13 | PR-AUC S13 | ROC-AUC S10 | PR-AUC S10 |
+| Modelo | ROC-AUC | PR-AUC | ROC-AUC alvo antigo (S10) | PR-AUC alvo antigo (S10) |
 | --- | --- | --- | --- | --- |
 | Logistic Regression | 0,793 ± 0,002 | 0,314 ± 0,014 | 0,800 ± 0,002 | 0,447 ± 0,014 |
 | Random Forest | 0,801 ± 0,002 | 0,354 ± 0,014 | 0,814 ± 0,003 | 0,487 ± 0,014 |
-| **XGBoost (vencedor nas duas)** | **0,824 ± 0,001** | **0,404 ± 0,014** | **0,837 ± 0,002** | **0,533 ± 0,013** |
+| **XGBoost (vencedor nos dois)** | **0,824 ± 0,001** | **0,404 ± 0,014** | **0,837 ± 0,002** | **0,533 ± 0,013** |
 
 Teste (XGBoost, avaliado uma vez):
 
-| Métrica | S13 (`readmissao_nao_planejada_30d`) | S10 (`readmissao_30d`) |
+| Métrica | Atual (`readmissao_nao_planejada_30d`) | Alvo antigo, S10 (`readmissao_30d`) |
 | --- | --- | --- |
 | Prevalência no teste | 0,069 | 0,120 |
 | ROC-AUC | 0,811 | 0,839 |
@@ -229,7 +271,7 @@ Teste (XGBoost, avaliado uma vez):
 | Matriz de confusão `[[VN, FP], [FN, VP]]` | `[[380840, 19947], [19160, 10737]]` | `[[354367, 24825], [25098, 26394]]` |
 | Calibração: maior diferença entre previsto e observado | 2,5 pontos (faixa mais alta: previsto 32,9%, observado 30,4%); média ponderada 0,4 ponto | 0,7 ponto |
 
-Por grupo, no mesmo limiar (S13; entre parênteses, o ROC-AUC da S10):
+Por grupo, no mesmo limiar (entre parênteses, o ROC-AUC do alvo antigo):
 
 | Grupo | Episódios | Prevalência | ROC-AUC | PR-AUC | Precisão | Recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -242,27 +284,29 @@ Por grupo, no mesmo limiar (S13; entre parênteses, o ROC-AUC da S10):
 | `chave_colidente` = não | 422.850 | 0,068 | 0,811 (0,840) | 0,329 | 0,347 | 0,356 |
 | `chave_colidente` = sim | 7.834 | 0,152 | 0,788 (0,796) | 0,487 | 0,433 | 0,430 |
 
-- **Eletivo e urgência ficaram iguais.** Na S10, o modelo ia muito melhor nas internações eletivas (0,902 contra 0,791). Com o alvo novo, os dois grupos ficam em 0,786 e 0,783. Quase todo o ganho das eletivas vinha das voltas programadas. Na urgência, quase nada mudou (0,791 para 0,783).
-- **A PR-AUC caiu mais que o ROC-AUC** (0,555 para 0,335) porque a prevalência caiu (12,0% para 6,9%). Contra a prevalência, a PR-AUC ainda é 4,9 vezes o acaso; na S10 era 4,6 vezes.
-- **CEP genérico.** Com o alvo novo, a prevalência é a mesma nos dois grupos (6,9%). A diferença da S10 (9,9% contra 13,6%) vinha em boa parte das voltas programadas. O modelo continua pior no CEP genérico (0,797 contra 0,822), porque o histórico da chave mistura pessoas.
+- **Eletivo e urgência ficaram iguais.** Com o alvo antigo, o modelo ia muito melhor nas internações eletivas (0,902 contra 0,791). Com o alvo atual, os dois grupos ficam em 0,786 e 0,783. Quase todo o ganho das eletivas vinha das voltas programadas. Na urgência, quase nada mudou (0,791 para 0,783).
+- **A PR-AUC caiu mais que o ROC-AUC** (0,555 para 0,335) porque a prevalência caiu (12,0% para 6,9%). Contra a prevalência, a PR-AUC ainda é 4,8 vezes o acaso; com o alvo antigo era 4,6 vezes.
+- **CEP genérico.** Com o alvo atual, a prevalência é a mesma nos dois grupos (6,9%). A diferença do alvo antigo (9,9% contra 13,6%) vinha em boa parte das voltas programadas. O modelo continua pior no CEP genérico (0,797 contra 0,822), porque o histórico da chave mistura pessoas.
 - **Histórico incompleto em 2023.** A variante treinada só com entradas a partir de 01/07/2023 (266.921 episódios) dá 0,809 no teste, contra 0,811 do modelo principal: o histórico curto do treino não atrapalha.
-- **Calibração.** O modelo superestima um pouco o risco no decil mais alto. A taxa caiu de 7,5% no treino para 6,9% no teste. Um calibrador não foi aplicado, como na S10.
+- **Calibração.** O modelo superestima um pouco o risco no decil mais alto. A taxa caiu de 7,5% no treino para 6,9% no teste. Nenhum calibrador foi aplicado.
 
-Importância por permutação (queda de ROC-AUC no teste, 50 mil episódios): `cnes_alta` 0,065, `car_int` 0,041, `grupo_sigtap` 0,030, `dias_permanencia` 0,025, `capitulo_cid` 0,019, `idade` 0,017; os demais ficam abaixo de 0,01 (`reports/importancia_atributos.csv`). Na S10, a ordem era `grupo_sigtap` 0,062, `cnes_alta` 0,045 e `capitulo_cid` 0,026. O tipo de procedimento perdeu metade do peso, e o caráter da internação-índice subiu. A internação-índice eletiva volta sem programação bem menos que a de urgência (2,3% contra 9,2%), e isso se sabe na alta.
+Importância por permutação (queda de ROC-AUC no teste, 50 mil episódios): `cnes_alta` 0,065, `car_int` 0,041, `grupo_sigtap` 0,030, `dias_permanencia` 0,025, `capitulo_cid` 0,019, `idade` 0,017; os demais ficam abaixo de 0,01 (`reports/importancia_atributos.csv`). Com o alvo antigo, a ordem era `grupo_sigtap` 0,062, `cnes_alta` 0,045 e `capitulo_cid` 0,026. O tipo de procedimento perdeu metade do peso, e o caráter da internação-índice subiu. A internação-índice eletiva volta sem programação bem menos que a de urgência (2,3% contra 9,2%), e isso se sabe na alta.
 
-> **ROC-AUC acima de 0,80 é tratado como suspeita de vazamento e investigado.** O teste deu 0,811, ainda acima do limite, então a investigação foi refeita com o alvo novo (`investigacao_vazamento` em `reports/metrics.json`):
->
-> - **Nenhum atributo sozinho explica o resultado.** O melhor atributo isolado é `dias_permanencia`, com ROC-AUC 0,637 (na S10, `episodios_365d` com 0,698).
-> - **Nenhum grupo de atributos carrega o resultado sozinho.** Sem o histórico da chave, o teste vai a 0,799; sem o hospital da alta, a 0,786.
-> - **Os atributos só usam o passado**, como na S10: o histórico só conta episódios terminados até a entrada, `chave_colidente` e `episodio_sobreposto` ficam fora, o teste é de um ano posterior e nenhuma chave aparece em dois folds.
-> - **Dentro de cada caráter, o ROC-AUC fica abaixo de 0,80** (0,786 no eletivo e 0,783 na urgência). O 0,811 geral vem em parte da separação entre os dois grupos, e essa separação é legítima: o caráter é conhecido na alta.
-> - **Readmissões em 0–1 dia.** São 28,6% dos positivos do teste (8.563): a volta começou no dia da alta ou no seguinte, muitas vezes no mesmo hospital. A D03, que decide se elas são o mesmo episódio, continua pendente. Sem elas, o teste fica em **0,784**.
->
-> Conclusão: não foi achado vazamento de informação posterior à alta. O que sobra acima de 0,80 vem da diferença entre eletivo e urgência e das voltas em 0–1 dia, que a D03 pode juntar ao episódio. Mesmo assim, o número não deve ser comparado com os 0,64–0,68 do Health-Project. Lá, o alvo, a base e o linkage são outros.
+### ROC-AUC acima de 0,80
 
-## Hospitais: razão observado/esperado (S11)
+Um ROC-AUC acima de 0,80 é tratado como suspeita de vazamento e investigado. O teste deu 0,811, então a investigação foi refeita com o alvo atual (`investigacao_vazamento` em `reports/metrics.json`):
 
-`reports/hospitais_oe.csv`, gerado em 24/11/2026 com o modelo da S13. Das 430.684 altas do teste, 427.808 são de 193 hospitais com pelo menos 100 altas. Nesses hospitais, o observado soma 29.651 readmissões não planejadas e o esperado, 31.436: razão geral de 0,94, porque a taxa caiu de 7,5% no treino para 6,9% no teste.
+- **Nenhum atributo sozinho explica o resultado.** O melhor atributo isolado é `dias_permanencia`, com ROC-AUC 0,637 (com o alvo antigo, `episodios_365d` com 0,698).
+- **Nenhum grupo de atributos carrega o resultado sozinho.** Sem o histórico da chave, o teste vai a 0,799; sem o hospital da alta, a 0,786.
+- **Os atributos só usam o passado.** O histórico só conta episódios terminados até a entrada, `chave_colidente` e `episodio_sobreposto` ficam fora, o teste é de um ano posterior e nenhuma chave aparece em dois folds.
+- **Dentro de cada caráter, o ROC-AUC fica abaixo de 0,80** (0,786 no eletivo e 0,783 na urgência). O 0,811 geral vem em parte da separação entre os dois grupos, e essa separação é legítima: o caráter é conhecido na alta.
+- **Readmissões em 0–1 dia.** São 28,6% dos positivos do teste (8.563): a volta começou no dia da alta ou no seguinte, muitas vezes no mesmo hospital. Sem elas, o teste fica em **0,784**.
+
+Conclusão: não foi achado vazamento de informação posterior à alta. O que sobra acima de 0,80 vem da diferença entre eletivo e urgência e das voltas em 0–1 dia, que a D03 pode juntar ao episódio. Mesmo assim, o número não deve ser comparado com os 0,64–0,68 do Health-Project. Lá, o alvo, a base e o linkage são outros.
+
+## Hospitais: razão observado/esperado
+
+`reports/hospitais_oe.csv`, gerado em 24/11/2026 com o modelo atual. Das 430.684 altas do teste, 427.808 são de 193 hospitais com pelo menos 100 altas. Nesses hospitais, o observado soma 29.651 readmissões não planejadas e o esperado, 31.436: razão geral de 0,94, porque a taxa caiu de 7,5% no treino para 6,9% no teste.
 
 | Leitura pelo IC 95% | Hospitais |
 | --- | ---: |
@@ -272,6 +316,51 @@ Importância por permutação (queda de ROC-AUC no teste, 50 mil episódios): `c
 
 Cuidados na leitura:
 
-- **O hospital da alta é atributo do modelo** (`cnes_alta`, o de maior importância). Os cerca de 107 hospitais com categoria própria têm parte do seu efeito já dentro do esperado, e a razão deles tende a 1. A razão mede o que sobra além do que o modelo aprendeu em 2023, não o desempenho do hospital contra um padrão externo. Um modelo de ajuste de risco sem o hospital daria outra leitura.
+- **O hospital da alta é atributo do modelo** (`cnes_alta`, o de maior importância). Ver [Limitações](#o-ranking-de-hospitais-não-é-ajuste-de-risco).
 - **O esperado é tratado como fixo** no IC; a incerteza do modelo não entra.
 - **São 193 comparações sem correção**: alguns hospitais ficam fora de 1 por acaso.
+
+## Limitações
+
+### Projeto de estudo, sem envio à RNDS
+
+- É um projeto de estudo e portfólio. O modelo não foi validado em uso clínico, não tem calibração externa e não deve apoiar decisões sobre pacientes.
+- Nada é enviado à RNDS. A validação é só local, com o validador da HL7. O perfil usado é o `sumario-alta` da SES-GO, em **rascunho** e em homologação, porque não há perfil nacional publicado (D02).
+- O Sumário de Alta tem paciente e profissional sintéticos e vários elementos como ausentes: o SIH-RD público não traz CNS, CPF, nome, telefone nem evolução clínica. Ele mostra o mapeamento, não um documento clínico real.
+
+### Linkage determinístico sem CNS
+
+O SIH-RD público não tem CNS nem CPF. A mesma pessoa é achada pela chave NASC + SEXO + CEP + MUNIC_RES (D01). Isso traz dois erros:
+
+- **Pessoas diferentes com a mesma chave.** 7.214 chaves (3,50% das chaves com 2+ internações) têm internações sobrepostas no tempo, o que é impossível para uma pessoa só. Essa conta só pega quem estava internado ao mesmo tempo; fusões em datas distantes não aparecem e também viram falsas readmissões. No teste, as altas de chave colidente têm prevalência de 0,152, contra 0,068 nas demais.
+- **CEP genérico.** O CEP terminado em `000` é o CEP geral da localidade, comum no interior de PE. Cobre 45,26% das altas elegíveis (`docs/atributos.md`) e 193.634 das 430.684 altas do teste. Nele, as colisões sobem para 4,39% (contra 2,77% no CEP específico), e o modelo vai pior: ROC-AUC 0,797, contra 0,822. O histórico da chave mistura pessoas, e parte das readmissões reais some.
+- Uma mudança de endereço muda a chave: a mesma pessoa vira duas.
+
+### Contíguas sem motivo: D03 pendente
+
+Alta seguida de nova AIH no mesmo dia ou no seguinte, sem código de transferência ou permanência, conta hoje como readmissão. Muitas são AIH administrativa da mesma estadia (D03). A decisão está **pendente**, e o banco usa o padrão conservador (`nenhuma`). Essas voltas em 0–1 dia são 28,6% dos positivos do teste (8.563). Sem elas, o ROC-AUC do teste cai de 0,811 para 0,784. O número final do modelo depende dessa decisão.
+
+### Taxa abaixo da literatura
+
+A taxa de readmissão não planejada é 7,25% (69.868 de 963.767 altas-índice). Fica abaixo da faixa de 11–14% das referências brasileiras citadas na D01. Os motivos prováveis (D04):
+
+- **População.** A referência mais próxima (Porto Alegre, 13,7% de readmissões não eletivas) mede a Medicina Interna de um hospital terciário. Aqui entram todas as altas do estado, inclusive obstetrícia e cirurgia eletiva, que voltam pouco.
+- **Caráter eletivo.** Toda volta eletiva conta como programada. É um critério mais largo que olhar só o procedimento e o diagnóstico: 43.643 altas saíram do alvo, e uma volta eletiva por complicação também sai. Sem esse critério (`--eletiva-nao-programada`), a taxa seria 10,33%.
+- **Linkage.** No CEP genérico, parte das readmissões reais some (ver acima).
+
+A comparação é só indicativa: as referências não dizem como trataram AIHs administrativas nem como acharam a mesma pessoa.
+
+### Recorte dos dados
+
+- **Só PE, 2023–2024.** Readmissões em hospitais de outro estado não aparecem, e a alta fica como não readmitida. O SIH só registra internações pagas pelo SUS: a volta por um hospital privado também não aparece.
+- **Histórico incompleto em 2023.** O histórico de 365 dias não vê nada antes de 01/01/2023. Todo o treino tem histórico incompleto. A variante treinada só com entradas a partir de 01/07/2023 dá quase o mesmo ROC-AUC (0,809 contra 0,811), mas o efeito não some por completo.
+- **Censura.** Entram só altas até 01/10/2024, para que os 30 dias seguintes estejam completos no SIH.
+- **Mudança de taxa.** A taxa caiu de 7,5% no treino para 6,9% no teste. O modelo superestima um pouco o risco, sobretudo no decil mais alto, e não foi recalibrado.
+
+### O ranking de hospitais não é ajuste de risco
+
+`cnes_alta` é o atributo de maior importância do modelo. Cerca de 107 hospitais têm categoria própria (`docs/modelo.md`), então parte do efeito de cada um já está dentro do esperado, e a razão O/E deles tende a 1. A razão mede o que sobra além do que o modelo aprendeu em 2023, não o desempenho do hospital contra um padrão externo. Para comparar hospitais seria preciso um modelo de ajuste de risco sem o hospital, com variáveis clínicas que o SIH-RD não tem.
+
+### ROC-AUC alto, investigado
+
+O ROC-AUC do teste (0,811) passou do limite de suspeita e foi investigado (ver [ROC-AUC acima de 0,80](#roc-auc-acima-de-080)). Não foi achado vazamento. O excesso vem da separação entre eletivo e urgência e das voltas em 0–1 dia da D03. Dentro de cada caráter, o ROC-AUC fica abaixo de 0,80.

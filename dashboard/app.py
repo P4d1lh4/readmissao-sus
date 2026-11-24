@@ -18,7 +18,7 @@ if str(RAIZ) not in sys.path:
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from dashboard import hospitais  # noqa: E402
+from dashboard import hospitais, leitura  # noqa: E402
 
 CSV_HOSPITAIS = Path(os.environ.get("READMISSAO_HOSPITAIS_CSV", RAIZ / "reports" / "hospitais_oe.csv"))
 DICA_GERAR = "Rode `.venv\\Scripts\\python scripts\\razao_hospitais.py` para gerar `reports/hospitais_oe.csv`."
@@ -56,6 +56,8 @@ def aba_hospitais(tabela: pd.DataFrame) -> None:
         f"{contagem.get(hospitais.ABAIXO, 0)} abaixo e {contagem.get(hospitais.COMPATIVEL, 0)} compatíveis."
     )
     st.plotly_chart(hospitais.grafico_oe(recorte), width="stretch")
+    with st.expander(leitura.TITULO, expanded=True):
+        st.markdown(leitura.texto(recorte))
     st.dataframe(hospitais.tabela_formatada(recorte), hide_index=True, width="stretch")
 
 

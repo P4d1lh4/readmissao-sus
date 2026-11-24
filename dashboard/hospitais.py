@@ -31,11 +31,13 @@ def filtrar(tabela: pd.DataFrame, minimo_altas: int) -> pd.DataFrame:
     return recorte.sort_values("razao_oe", ascending=False).reset_index(drop=True)
 
 
+def numero(valor: float, casas: int) -> str:
+    """Número no padrão brasileiro: 9.025 e 2,66."""
+    return f"{valor:,.{casas}f}".replace(",", "_").replace(".", ",").replace("_", ".")
+
+
 def tabela_formatada(tabela: pd.DataFrame) -> pd.DataFrame:
     """Valores como texto no padrão brasileiro (o st.dataframe não formata assim)."""
-    def numero(valor: float, casas: int) -> str:
-        return f"{valor:,.{casas}f}".replace(",", "_").replace(".", ",").replace("_", ".")
-
     return pd.DataFrame(
         {
             "CNES": tabela["cnes"],

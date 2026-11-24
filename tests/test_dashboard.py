@@ -47,6 +47,8 @@ def test_app_mostra_tabela_e_grafico_e_filtra(csv: Path) -> None:
     assert [t.label for t in app.tabs] == ["Hospitais"]
     assert len(app.dataframe[0].value) == 3
     assert app.get("plotly_chart")
+    assert [e.label for e in app.expander] == ["Como ler a tabela"]
+    assert "**0000001**" in app.expander[0].markdown[0].value
 
     app.number_input[0].set_value(600).run()
     assert not app.exception

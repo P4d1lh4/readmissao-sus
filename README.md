@@ -45,7 +45,7 @@ Documentos de apoio:
 
 | Arquivo | Conteúdo |
 | --- | --- |
-| `docs/decisoes.md` | D01 linkage, D02 perfil FHIR, D03 contíguas sem motivo (pendente), D04 readmissões programadas |
+| `docs/decisoes.md` | D01 linkage, D02 perfil FHIR, D03 contíguas sem motivo (decidida: `mesmo_hospital`), D04 readmissões programadas |
 | `docs/coorte.md` | filtros, marcas, sal da chave e contagens do banco |
 | `docs/atributos.md` | definição e contagens de cada atributo do modelo |
 | `docs/modelo.md` | atributos que entram e ficam fora, validação cruzada e checagens |
@@ -106,7 +106,7 @@ Recria do zero o banco DuckDB `data/sih.duckdb` (staging tipado, internações, 
 
 Leva cerca de 5 minutos.
 
-- **Episódios.** O banco junta num episódio as internações contíguas após transferência ou permanência. A regra para alta seguida de nova AIH no mesmo dia ou no seguinte aguarda decisão (D03) e muda com `--contiguas-sem-motivo nenhuma|mesmo_hospital|todas` (padrão `nenhuma`).
+- **Episódios.** O banco junta num episódio as internações contíguas após transferência ou permanência. A alta comum seguida de nova AIH no mesmo hospital, no mesmo dia ou no seguinte, também continua o episódio (D03, decidida em 24/11/2026). A regra muda com `--contiguas-sem-motivo nenhuma|mesmo_hospital|todas` (padrão `mesmo_hospital`).
 - **Alvo.** `readmissao_nao_planejada_30d`: readmissão em 30 dias sem as voltas programadas. A volta eletiva conta como programada (D04); `--eletiva-nao-programada` deixa só a lista de procedimentos e CIDs sempre programados. O alvo antigo, `readmissao_30d`, fica como coluna auxiliar.
 - **Atributos.** A tabela `atributo_episodio` (`sql/06_atributos.sql`) tem uma linha por episódio elegível: o alvo, os atributos do paciente e do episódio e o histórico da mesma chave nos 365 dias antes da entrada, sem vazamento. As definições e as fontes dos códigos (capítulo da CID-10, grupo SIGTAP) estão em `docs/atributos.md`.
 - **Chave.** O banco guarda a chave de linkage como SHA-256 com sal. O sal vem de `READMISSAO_SAL_CHAVE` ou de `data/sal_chave.txt` (criado na primeira vez). Banco, sal e chave ficam em `data/`, fora do git. O motivo do sal está em `docs/coorte.md`.
@@ -246,73 +246,81 @@ Resultado em 23/11/2026, com terminologia (tx.fhir.org): **20 de 20 Bundles vál
 
 ## Resultados do modelo
 
-Treino de 23/11/2026 com `.venv\Scripts\python scripts\treinar.py` (padrões: `--fracao-cv 0.5`, `--random-state 42`), 10 minutos em CPU de 12 threads. O alvo é `readmissao_nao_planejada_30d`: a volta eletiva ou com procedimento ou CID sempre programado não conta (D04). Ao lado ficam os números do primeiro modelo (S10), com o mesmo protocolo e o alvo antigo, `readmissao_30d`, que contava as voltas programadas. Os números completos estão em `reports/metrics.json` e `reports/metrics_s10.json`; as escolhas, em `docs/modelo.md`.
+Treino de 24/11/2026 com `.venv\Scripts\python scripts\treinar.py` (padrões: `--fracao-cv 0.5`, `--random-state 42`), 10 minutos em CPU de 12 threads. O alvo é `readmissao_nao_planejada_30d`: a volta eletiva ou com procedimento ou CID sempre programado não conta (D04). Os episódios seguem a D03 (`mesmo_hospital`): a nova AIH no mesmo hospital, no dia da alta ou no seguinte, continua o episódio.
 
-Divisão temporal: **treino** com as 533.083 altas de 2023 (436.823 chaves) e **teste** com as 430.684 altas de 2024 até 01/10/2024 (357.355 chaves). 39.435 chaves têm altas nos dois anos, como teriam em uso. A validação cruzada usa 50% das chaves do treino (266.536 episódios), em 5 folds agrupados pela chave.
+Ao lado ficam dois modelos anteriores, com o mesmo protocolo:
+
+- **antes da D03:** mesmo alvo, mas a nova AIH em 0–1 dia no mesmo hospital contava como readmissão (`reports/metrics_s13.json`);
+- **S10:** o primeiro modelo, com o alvo antigo, `readmissao_30d`, que contava as voltas programadas (`reports/metrics_s10.json`).
+
+Os números completos estão em `reports/metrics.json`; as escolhas, em `docs/modelo.md`.
+
+Divisão temporal: **treino** com as 519.393 altas de 2023 (435.322 chaves) e **teste** com as 420.746 altas de 2024 até 01/10/2024 (356.133 chaves). 38.998 chaves têm altas nos dois anos, como teriam em uso. A validação cruzada usa 50% das chaves do treino (260.092 episódios), em 5 folds agrupados pela chave.
 
 Validação cruzada no treino (5 folds, média ± desvio):
 
-| Modelo | ROC-AUC | PR-AUC | ROC-AUC alvo antigo (S10) | PR-AUC alvo antigo (S10) |
+| Modelo | ROC-AUC | PR-AUC | ROC-AUC antes da D03 | ROC-AUC S10 |
 | --- | --- | --- | --- | --- |
-| Logistic Regression | 0,793 ± 0,002 | 0,314 ± 0,014 | 0,800 ± 0,002 | 0,447 ± 0,014 |
-| Random Forest | 0,801 ± 0,002 | 0,354 ± 0,014 | 0,814 ± 0,003 | 0,487 ± 0,014 |
-| **XGBoost (vencedor nos dois)** | **0,824 ± 0,001** | **0,404 ± 0,014** | **0,837 ± 0,002** | **0,533 ± 0,013** |
+| Logistic Regression | 0,778 ± 0,007 | 0,251 ± 0,018 | 0,793 ± 0,002 | 0,800 ± 0,002 |
+| Random Forest | 0,787 ± 0,007 | 0,283 ± 0,016 | 0,801 ± 0,002 | 0,814 ± 0,003 |
+| **XGBoost (vencedor nos três)** | **0,803 ± 0,006** | **0,311 ± 0,019** | **0,824 ± 0,001** | **0,837 ± 0,002** |
 
 Teste (XGBoost, avaliado uma vez):
 
-| Métrica | Atual (`readmissao_nao_planejada_30d`) | Alvo antigo, S10 (`readmissao_30d`) |
-| --- | --- | --- |
-| Prevalência no teste | 0,069 | 0,120 |
-| ROC-AUC | 0,811 | 0,839 |
-| PR-AUC | 0,335 | 0,555 |
-| Brier | 0,055 | 0,075 |
-| Limiar (máx. F1 out-of-fold) | 0,208 | 0,260 |
-| Precisão / recall / F1 no limiar | 0,350 / 0,359 / 0,354 | 0,515 / 0,513 / 0,514 |
-| Matriz de confusão `[[VN, FP], [FN, VP]]` | `[[380840, 19947], [19160, 10737]]` | `[[354367, 24825], [25098, 26394]]` |
-| Calibração: maior diferença entre previsto e observado | 2,5 pontos (faixa mais alta: previsto 32,9%, observado 30,4%); média ponderada 0,4 ponto | 0,7 ponto |
+| Métrica | Atual | Antes da D03 | S10 (`readmissao_30d`) |
+| --- | --- | --- | --- |
+| Altas no teste | 420.746 | 430.684 | 430.684 |
+| Prevalência no teste | 0,054 | 0,069 | 0,120 |
+| ROC-AUC | **0,791** | 0,811 | 0,839 |
+| PR-AUC | 0,223 | 0,335 | 0,555 |
+| Brier | 0,046 | 0,055 | 0,075 |
+| Limiar (máx. F1 out-of-fold) | 0,168 | 0,208 | 0,260 |
+| Precisão / recall / F1 no limiar | 0,256 / 0,294 / 0,274 | 0,350 / 0,359 / 0,354 | 0,515 / 0,513 / 0,514 |
+| Matriz de confusão `[[VN, FP], [FN, VP]]` | `[[378875, 19295], [15935, 6641]]` | `[[380840, 19947], [19160, 10737]]` | `[[354367, 24825], [25098, 26394]]` |
+| Calibração: maior diferença entre previsto e observado | 2,3 pontos (faixa mais alta: previsto 23,6%, observado 21,3%); média ponderada 0,4 ponto | 2,5 pontos | 0,7 ponto |
 
-Por grupo, no mesmo limiar (entre parênteses, o ROC-AUC do alvo antigo):
+Por grupo, no mesmo limiar (entre parênteses, o ROC-AUC antes da D03 e o da S10):
 
 | Grupo | Episódios | Prevalência | ROC-AUC | PR-AUC | Precisão | Recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **caráter eletivo (01) da internação-índice** | 140.683 | 0,023 | **0,786** (0,902) | 0,098 | 0,165 | 0,150 |
-| **caráter urgência (02) da internação-índice** | 288.342 | 0,092 | **0,783** (0,791) | 0,367 | 0,369 | 0,385 |
-| `cep_generico` = não | 237.050 | 0,069 | 0,822 (0,857) | 0,357 | 0,359 | 0,401 |
-| `cep_generico` = sim | 193.634 | 0,069 | 0,797 (0,807) | 0,306 | 0,336 | 0,307 |
-| `historico_completo` = sim | 424.949 | 0,069 | 0,811 (0,839) | 0,331 | 0,349 | 0,356 |
-| `historico_completo` = não (entrada em 2023) | 5.735 | 0,122 | 0,799 (0,807) | 0,486 | 0,378 | 0,494 |
-| `chave_colidente` = não | 422.850 | 0,068 | 0,811 (0,840) | 0,329 | 0,347 | 0,356 |
-| `chave_colidente` = sim | 7.834 | 0,152 | 0,788 (0,796) | 0,487 | 0,433 | 0,430 |
+| **caráter eletivo (01) da internação-índice** | 137.798 | 0,020 | **0,788** (0,786; 0,902) | 0,086 | 0,143 | 0,179 |
+| **caráter urgência (02) da internação-índice** | 281.294 | 0,070 | **0,761** (0,783; 0,791) | 0,250 | 0,273 | 0,311 |
+| `cep_generico` = não | 230.848 | 0,052 | 0,802 (0,822; 0,857) | 0,236 | 0,267 | 0,313 |
+| `cep_generico` = sim | 189.898 | 0,056 | 0,779 (0,797; 0,807) | 0,206 | 0,243 | 0,273 |
+| `historico_completo` = sim | 415.036 | 0,053 | 0,792 (0,811; 0,839) | 0,222 | 0,256 | 0,293 |
+| `historico_completo` = não (entrada em 2023) | 5.710 | 0,085 | 0,760 (0,799; 0,807) | 0,277 | 0,278 | 0,344 |
+| `chave_colidente` = não | 413.289 | 0,053 | 0,792 (0,811; 0,840) | 0,219 | 0,255 | 0,293 |
+| `chave_colidente` = sim | 7.457 | 0,108 | 0,756 (0,788; 0,796) | 0,329 | 0,296 | 0,333 |
 
-- **Eletivo e urgência ficaram iguais.** Com o alvo antigo, o modelo ia muito melhor nas internações eletivas (0,902 contra 0,791). Com o alvo atual, os dois grupos ficam em 0,786 e 0,783. Quase todo o ganho das eletivas vinha das voltas programadas. Na urgência, quase nada mudou (0,791 para 0,783).
-- **A PR-AUC caiu mais que o ROC-AUC** (0,555 para 0,335) porque a prevalência caiu (12,0% para 6,9%). Contra a prevalência, a PR-AUC ainda é 4,8 vezes o acaso; com o alvo antigo era 4,6 vezes.
-- **CEP genérico.** Com o alvo atual, a prevalência é a mesma nos dois grupos (6,9%). A diferença do alvo antigo (9,9% contra 13,6%) vinha em boa parte das voltas programadas. O modelo continua pior no CEP genérico (0,797 contra 0,822), porque o histórico da chave mistura pessoas.
-- **Histórico incompleto em 2023.** A variante treinada só com entradas a partir de 01/07/2023 (266.921 episódios) dá 0,809 no teste, contra 0,811 do modelo principal: o histórico curto do treino não atrapalha.
-- **Calibração.** O modelo superestima um pouco o risco no decil mais alto. A taxa caiu de 7,5% no treino para 6,9% no teste. Nenhum calibrador foi aplicado.
+- **A D03 tirou do alvo a maior parte das voltas em 0–1 dia.** Antes, elas eram 28,6% dos positivos do teste; agora são 6,7% (1.521). Eram AIHs do mesmo hospital, fáceis de prever pelo hospital e pelo histórico. Sem elas, o ROC-AUC caiu de 0,811 para 0,791, e a prevalência, de 6,9% para 5,4%.
+- **Eletivo e urgência.** A S13 já tinha tirado o ganho das eletivas, que vinha das voltas programadas (0,902 na S10). Com a D03, a urgência cai mais (0,783 para 0,761) que a eletiva (0,786 para 0,788): as contíguas do mesmo hospital eram, em boa parte, voltas de urgência.
+- **A PR-AUC caiu mais que o ROC-AUC** (0,335 para 0,223) porque a prevalência caiu. Contra a prevalência, a PR-AUC é 4,1 vezes o acaso (4,8 antes da D03; 4,6 na S10).
+- **CEP genérico.** O modelo continua pior no CEP genérico (0,779 contra 0,802), porque o histórico da chave mistura pessoas. A prevalência agora é um pouco maior nesse grupo (5,6% contra 5,2%).
+- **Histórico incompleto em 2023.** A variante treinada só com entradas a partir de 01/07/2023 (260.559 episódios) dá 0,788 no teste, contra 0,791 do modelo principal: o histórico curto do treino não atrapalha.
+- **Calibração.** O modelo superestima um pouco o risco no decil mais alto. A taxa caiu de 5,6% no treino para 5,4% no teste. Nenhum calibrador foi aplicado.
 
-Importância por permutação (queda de ROC-AUC no teste, 50 mil episódios): `cnes_alta` 0,065, `car_int` 0,041, `grupo_sigtap` 0,030, `dias_permanencia` 0,025, `capitulo_cid` 0,019, `idade` 0,017; os demais ficam abaixo de 0,01 (`reports/importancia_atributos.csv`). Com o alvo antigo, a ordem era `grupo_sigtap` 0,062, `cnes_alta` 0,045 e `capitulo_cid` 0,026. O tipo de procedimento perdeu metade do peso, e o caráter da internação-índice subiu. A internação-índice eletiva volta sem programação bem menos que a de urgência (2,3% contra 9,2%), e isso se sabe na alta.
+Importância por permutação (queda de ROC-AUC no teste, 50 mil episódios): `cnes_alta` 0,048, `car_int` 0,034, `dias_permanencia` 0,030, `capitulo_cid` 0,030, `grupo_sigtap` 0,029, `idade` 0,019, `dias_desde_ultima_alta` 0,017; os demais ficam abaixo de 0,01 (`reports/importancia_atributos.csv`). Antes da D03, o hospital pesava mais (0,065). Na S10, a ordem era `grupo_sigtap` 0,062, `cnes_alta` 0,045 e `capitulo_cid` 0,026. A internação-índice eletiva volta sem programação bem menos que a de urgência (2,0% contra 7,0%), e isso se sabe na alta.
 
-### ROC-AUC acima de 0,80
+### Investigação de vazamento
 
-Um ROC-AUC acima de 0,80 é tratado como suspeita de vazamento e investigado. O teste deu 0,811, então a investigação foi refeita com o alvo atual (`investigacao_vazamento` em `reports/metrics.json`):
+Um ROC-AUC acima de 0,80 é tratado como suspeita de vazamento. O modelo atual ficou em 0,791, abaixo do limite. A investigação roda a cada treino (`investigacao_vazamento` em `reports/metrics.json`):
 
-- **Nenhum atributo sozinho explica o resultado.** O melhor atributo isolado é `dias_permanencia`, com ROC-AUC 0,637 (com o alvo antigo, `episodios_365d` com 0,698).
-- **Nenhum grupo de atributos carrega o resultado sozinho.** Sem o histórico da chave, o teste vai a 0,799; sem o hospital da alta, a 0,786.
+- **Nenhum atributo sozinho explica o resultado.** O melhor atributo isolado é `dias_desde_ultima_alta`, com ROC-AUC 0,618.
+- **Nenhum grupo de atributos carrega o resultado sozinho.** Sem o histórico da chave, o teste vai a 0,777; sem o hospital da alta, a 0,773.
 - **Os atributos só usam o passado.** O histórico só conta episódios terminados até a entrada, `chave_colidente` e `episodio_sobreposto` ficam fora, o teste é de um ano posterior e nenhuma chave aparece em dois folds.
-- **Dentro de cada caráter, o ROC-AUC fica abaixo de 0,80** (0,786 no eletivo e 0,783 na urgência). O 0,811 geral vem em parte da separação entre os dois grupos, e essa separação é legítima: o caráter é conhecido na alta.
-- **Readmissões em 0–1 dia.** São 28,6% dos positivos do teste (8.563): a volta começou no dia da alta ou no seguinte, muitas vezes no mesmo hospital. Sem elas, o teste fica em **0,784**.
+- **Readmissões em 0–1 dia.** Sobram 1.521 (6,7% dos positivos). Sem elas, o teste fica em 0,793.
 
-Conclusão: não foi achado vazamento de informação posterior à alta. O que sobra acima de 0,80 vem da diferença entre eletivo e urgência e das voltas em 0–1 dia, que a D03 pode juntar ao episódio. Mesmo assim, o número não deve ser comparado com os 0,64–0,68 do Health-Project. Lá, o alvo, a base e o linkage são outros.
+Os modelos anteriores passaram de 0,80 (0,839 na S10 e 0,811 antes da D03) e foram investigados. O excesso vinha das voltas programadas e das AIHs contíguas do mesmo hospital, não de dado posterior à alta. A D04 e a D03 tiraram esses casos do alvo. O número não deve ser comparado com os 0,64–0,68 do Health-Project: lá, o alvo, a base e o linkage são outros.
 
 ## Hospitais: razão observado/esperado
 
-`reports/hospitais_oe.csv`, gerado em 24/11/2026 com o modelo atual. Das 430.684 altas do teste, 427.808 são de 193 hospitais com pelo menos 100 altas. Nesses hospitais, o observado soma 29.651 readmissões não planejadas e o esperado, 31.436: razão geral de 0,94, porque a taxa caiu de 7,5% no treino para 6,9% no teste.
+`reports/hospitais_oe.csv`, gerado em 24/11/2026 com o modelo atual. Das 420.746 altas do teste, 417.886 são de 193 hospitais com pelo menos 100 altas. Nesses hospitais, o observado soma 22.344 readmissões não planejadas e o esperado, 23.485: razão geral de 0,95, porque a taxa caiu de 5,6% no treino para 5,4% no teste.
 
 | Leitura pelo IC 95% | Hospitais |
 | --- | ---: |
-| Acima do esperado (IC inteiro acima de 1) | 16 |
-| Compatível com o esperado | 138 |
-| Abaixo do esperado (IC inteiro abaixo de 1) | 39 |
+| Acima do esperado (IC inteiro acima de 1) | 13 |
+| Compatível com o esperado | 153 |
+| Abaixo do esperado (IC inteiro abaixo de 1) | 27 |
 
 Cuidados na leitura:
 
@@ -332,20 +340,24 @@ Cuidados na leitura:
 
 O SIH-RD público não tem CNS nem CPF. A mesma pessoa é achada pela chave NASC + SEXO + CEP + MUNIC_RES (D01). Isso traz dois erros:
 
-- **Pessoas diferentes com a mesma chave.** 7.214 chaves (3,50% das chaves com 2+ internações) têm internações sobrepostas no tempo, o que é impossível para uma pessoa só. Essa conta só pega quem estava internado ao mesmo tempo; fusões em datas distantes não aparecem e também viram falsas readmissões. No teste, as altas de chave colidente têm prevalência de 0,152, contra 0,068 nas demais.
-- **CEP genérico.** O CEP terminado em `000` é o CEP geral da localidade, comum no interior de PE. Cobre 45,26% das altas elegíveis (`docs/atributos.md`) e 193.634 das 430.684 altas do teste. Nele, as colisões sobem para 4,39% (contra 2,77% no CEP específico), e o modelo vai pior: ROC-AUC 0,797, contra 0,822. O histórico da chave mistura pessoas, e parte das readmissões reais some.
+- **Pessoas diferentes com a mesma chave.** Na D01, 7.214 chaves (3,50% das chaves com 2+ internações) tinham internações sobrepostas no tempo, o que é impossível para uma pessoa só. Essa conta só pega quem estava internado ao mesmo tempo; fusões em datas distantes não aparecem e também viram falsas readmissões. No teste, as altas de chave colidente têm prevalência de 0,108, contra 0,053 nas demais.
+- **CEP genérico.** O CEP terminado em `000` é o CEP geral da localidade, comum no interior de PE. Cobre 45,46% das altas elegíveis (`docs/atributos.md`) e 189.898 das 420.746 altas do teste. Na D01, as colisões subiam para 4,39% nesse grupo (contra 2,77% no CEP específico). O modelo vai pior nele: ROC-AUC 0,779, contra 0,802. O histórico da chave mistura pessoas, e parte das readmissões reais some.
 - Uma mudança de endereço muda a chave: a mesma pessoa vira duas.
 
-### Contíguas sem motivo: D03 pendente
+### Contíguas sem motivo (D03)
 
-Alta seguida de nova AIH no mesmo dia ou no seguinte, sem código de transferência ou permanência, conta hoje como readmissão. Muitas são AIH administrativa da mesma estadia (D03). A decisão está **pendente**, e o banco usa o padrão conservador (`nenhuma`). Essas voltas em 0–1 dia são 28,6% dos positivos do teste (8.563). Sem elas, o ROC-AUC do teste cai de 0,811 para 0,784. O número final do modelo depende dessa decisão.
+A alta comum seguida de nova AIH no mesmo hospital, no dia da alta ou no seguinte, agora continua o episódio (D03, `mesmo_hospital`, decidida em 24/11/2026). Na maioria, é a mesma estadia em outra AIH, por motivo administrativo. Dois erros possíveis continuam:
+
+- **No mesmo hospital,** uma volta real em menos de um dia, depois de ir para casa, agora some do alvo.
+- **Em outro hospital,** a nova AIH continua contando como readmissão, mesmo quando é uma transferência sem o código. Sobram 1.521 voltas em 0–1 dia entre os positivos do teste (6,7%).
 
 ### Taxa abaixo da literatura
 
-A taxa de readmissão não planejada é 7,25% (69.868 de 963.767 altas-índice). Fica abaixo da faixa de 11–14% das referências brasileiras citadas na D01. Os motivos prováveis (D04):
+A taxa de readmissão não planejada é 5,52% (51.891 de 940.139 altas-índice). Fica abaixo da faixa de 11–14% das referências brasileiras citadas na D01. Os motivos prováveis (D03 e D04):
 
 - **População.** A referência mais próxima (Porto Alegre, 13,7% de readmissões não eletivas) mede a Medicina Interna de um hospital terciário. Aqui entram todas as altas do estado, inclusive obstetrícia e cirurgia eletiva, que voltam pouco.
-- **Caráter eletivo.** Toda volta eletiva conta como programada. É um critério mais largo que olhar só o procedimento e o diagnóstico: 43.643 altas saíram do alvo, e uma volta eletiva por complicação também sai. Sem esse critério (`--eletiva-nao-programada`), a taxa seria 10,33%.
+- **Caráter eletivo.** Toda volta eletiva conta como programada. É um critério mais largo que olhar só o procedimento e o diagnóstico: 37.750 altas saíram do alvo, e uma volta eletiva por complicação também sai. Sem esse critério (`--eletiva-nao-programada`), a taxa seria 8,08%.
+- **Contíguas no mesmo hospital.** A D03 junta ao episódio a nova AIH em 0–1 dia no mesmo hospital. Antes dela, a taxa não planejada era 7,25%.
 - **Linkage.** No CEP genérico, parte das readmissões reais some (ver acima).
 
 A comparação é só indicativa: as referências não dizem como trataram AIHs administrativas nem como acharam a mesma pessoa.
@@ -353,14 +365,14 @@ A comparação é só indicativa: as referências não dizem como trataram AIHs 
 ### Recorte dos dados
 
 - **Só PE, 2023–2024.** Readmissões em hospitais de outro estado não aparecem, e a alta fica como não readmitida. O SIH só registra internações pagas pelo SUS: a volta por um hospital privado também não aparece.
-- **Histórico incompleto em 2023.** O histórico de 365 dias não vê nada antes de 01/01/2023. Todo o treino tem histórico incompleto. A variante treinada só com entradas a partir de 01/07/2023 dá quase o mesmo ROC-AUC (0,809 contra 0,811), mas o efeito não some por completo.
+- **Histórico incompleto em 2023.** O histórico de 365 dias não vê nada antes de 01/01/2023. Todo o treino tem histórico incompleto. A variante treinada só com entradas a partir de 01/07/2023 dá quase o mesmo ROC-AUC (0,788 contra 0,791), mas o efeito não some por completo.
 - **Censura.** Entram só altas até 01/10/2024, para que os 30 dias seguintes estejam completos no SIH.
-- **Mudança de taxa.** A taxa caiu de 7,5% no treino para 6,9% no teste. O modelo superestima um pouco o risco, sobretudo no decil mais alto, e não foi recalibrado.
+- **Mudança de taxa.** A taxa caiu de 5,6% no treino para 5,4% no teste. O modelo superestima um pouco o risco, sobretudo no decil mais alto, e não foi recalibrado.
 
 ### O ranking de hospitais não é ajuste de risco
 
 `cnes_alta` é o atributo de maior importância do modelo. Cerca de 107 hospitais têm categoria própria (`docs/modelo.md`), então parte do efeito de cada um já está dentro do esperado, e a razão O/E deles tende a 1. A razão mede o que sobra além do que o modelo aprendeu em 2023, não o desempenho do hospital contra um padrão externo. Para comparar hospitais seria preciso um modelo de ajuste de risco sem o hospital, com variáveis clínicas que o SIH-RD não tem.
 
-### ROC-AUC alto, investigado
+### ROC-AUC dos modelos anteriores
 
-O ROC-AUC do teste (0,811) passou do limite de suspeita e foi investigado (ver [ROC-AUC acima de 0,80](#roc-auc-acima-de-080)). Não foi achado vazamento. O excesso vem da separação entre eletivo e urgência e das voltas em 0–1 dia da D03. Dentro de cada caráter, o ROC-AUC fica abaixo de 0,80.
+Os modelos anteriores passaram do limite de suspeita de 0,80 (0,839 na S10 e 0,811 antes da D03). O excesso vinha das voltas programadas e das AIHs contíguas do mesmo hospital, não de dado posterior à alta (ver [Investigação de vazamento](#investigação-de-vazamento)). Com a D04 e a D03, o modelo atual fica em 0,791.

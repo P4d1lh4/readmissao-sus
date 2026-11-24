@@ -62,7 +62,7 @@ As contagens estão na tabela "Colisões (D01)" abaixo.
 
 ## Leitura dos números
 
-Números de 23/11/2026, com a regra padrão da D03 (`nenhuma`); estão no bloco abaixo.
+Números de 23/11/2026, antes da D03 (`nenhuma`). O bloco abaixo foi regerado em 24/11/2026 com a regra decidida na D03 (`mesmo_hospital`): 940.139 episódios elegíveis, readmissão de 9,53% e readmissão não planejada (alvo da D04) de 5,52%. As leituras abaixo continuam valendo em ordem de grandeza.
 
 - **963.767 episódios elegíveis** e taxa de 11,78%, os mesmos da `coorte_episodio` em `docs/coorte.md`: a tabela não tira nem acrescenta episódios.
 - **Histórico.** É o grupo de atributos com o sinal mais forte: a readmissão vai de 7,51% sem episódio anterior em 365 dias a 67,20% com 5 ou mais. A taxa também sobe quando a última alta foi há pouco tempo (42,75% com `dias_desde_ultima_alta` entre 2 e 7).
@@ -74,9 +74,9 @@ Números de 23/11/2026, com a regra padrão da D03 (`nenhuma`); estão no bloco 
 ## Contagens
 
 <!-- atributos:inicio (gerado por scripts/construir_banco.py; não editar à mão) -->
-Gerado por `.venv\Scripts\python scripts\construir_banco.py` em 23/11/2026. Só agregados.
+Gerado por `.venv\Scripts\python scripts\construir_banco.py` em 24/11/2026. Só agregados.
 
-Regra dos episódios: **transferência + permanência** (`contiguas_sem_motivo = 'nenhuma'`). Episódios elegíveis (linhas de `atributo_episodio`): **963.767**; readmitidos em 30 dias: 113.511 (11,78%); sem as voltas programadas (alvo da D04): 69.868 (7,25%).
+Regra dos episódios: **transferência + permanência + contíguas sem motivo no mesmo hospital** (`contiguas_sem_motivo = 'mesmo_hospital'`). Episódios elegíveis (linhas de `atributo_episodio`): **940.139**; readmitidos em 30 dias: 89.641 (9,53%); sem as voltas programadas (alvo da D04): 51.891 (5,52%).
 
 #### Colunas: tipo e nulos
 
@@ -98,7 +98,7 @@ Regra dos episódios: **transferência + permanência** (`contiguas_sem_motivo =
 | `n_hospitais` | INTEGER | Hospitais (CNES) distintos no episódio | 0,00% |
 | `houve_transferencia` | BOOLEAN | Episódio juntou internações por transferência | 0,00% |
 | `houve_permanencia` | BOOLEAN | Episódio juntou internações por permanência | 0,00% |
-| `houve_contigua_sem_motivo` | BOOLEAN | Episódio juntou contíguas sem motivo (só com a D03 diferente de 'nenhuma') | 0,00% |
+| `houve_contigua_sem_motivo` | BOOLEAN | Episódio juntou contíguas sem motivo (D03: só no mesmo hospital) | 0,00% |
 | `cep_generico` | BOOLEAN | CEP terminado em 000 (D01, condição 2) | 0,00% |
 | `cnes_alta` | VARCHAR | CNES do hospital da alta (última internação) | 0,00% |
 | `ano_alta` | SMALLINT | Ano da alta | 0,00% |
@@ -107,7 +107,7 @@ Regra dos episódios: **transferência + permanência** (`contiguas_sem_motivo =
 | `historico_completo` | BOOLEAN | Janela de 365 dias antes da entrada inteira dentro dos dados | 0,00% |
 | `episodios_365d` | INTEGER | Episódios anteriores da chave com saída nos 365 dias antes da entrada | 0,00% |
 | `dias_internado_365d` | INTEGER | Dias internado nesses episódios, dentro da janela | 0,00% |
-| `dias_desde_ultima_alta` | INTEGER | Dias entre a última alta anterior da chave e a entrada | 78,47% |
+| `dias_desde_ultima_alta` | INTEGER | Dias entre a última alta anterior da chave e a entrada | 80,21% |
 | `historico_com_obito` | BOOLEAN | Algum episódio anterior da chave terminou em óbito (colisão) | 0,00% |
 | `chave_colidente` | BOOLEAN | A chave tem episódios sobrepostos no tempo (D01) | 0,00% |
 | `episodio_sobreposto` | BOOLEAN | Este episódio se sobrepõe a outro da mesma chave | 0,00% |
@@ -116,252 +116,253 @@ Regra dos episódios: **transferência + permanência** (`contiguas_sem_motivo =
 
 | historico_completo | Episódios | Com episódio em 365 dias | Média episodios_365d | Média dias_internado_365d | Sem episódio anterior | Readmissão 30 dias | Readmissão com histórico | Readmissão sem histórico |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| sim | 424.949 | 23,67% | 0,780 | 3,29 | 74,13% | 11,90% | 27,36% | 7,11% |
-| não | 538.818 | 18,10% | 0,445 | 2,36 | 81,89% | 11,68% | 29,24% | 7,80% |
+| sim | 415.036 | 22,10% | 0,729 | 2,76 | 75,66% | 9,83% | 25,11% | 5,50% |
+| não | 525.103 | 16,17% | 0,403 | 1,83 | 83,82% | 9,30% | 26,66% | 5,95% |
 
 #### Colisões (D01)
 
 | Item | Valor |
 | --- | ---: |
-| Pares de episódios sobrepostos da mesma chave (toda a tabela episodio) | 8.183 |
-| Chaves com episódios sobrepostos | 7.214 |
-| Episódios envolvidos em alguma sobreposição | 15.191 |
-| Episódios elegíveis com chave_colidente | 17.239 |
-| Episódios elegíveis com episodio_sobreposto | 12.801 |
-| Episódios elegíveis com historico_com_obito | 1.680 |
+| Pares de episódios sobrepostos da mesma chave (toda a tabela episodio) | 8.066 |
+| Chaves com episódios sobrepostos | 7.219 |
+| Episódios envolvidos em alguma sobreposição | 15.045 |
+| Episódios elegíveis com chave_colidente | 16.336 |
+| Episódios elegíveis com episodio_sobreposto | 12.593 |
+| Episódios elegíveis com historico_com_obito | 1.645 |
 
 #### `readmissao_30d`: Alvo da S10 (auxiliar): novo episódio da mesma chave em até 30 dias após a alta
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 113.511 | 11,78% | 100,00% | 61,55% |
-| não | 850.256 | 88,22% | 0,00% | 0,00% |
+| sim | 89.641 | 9,53% | 100,00% | 57,89% |
+| não | 850.498 | 90,47% | 0,00% | 0,00% |
 
 #### `readmissao_nao_planejada_30d`: Alvo (D04): como readmissao_30d, mas só com voltas não programadas
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 69.868 | 7,25% | 100,00% | 100,00% |
-| não | 893.899 | 92,75% | 4,88% | 0,00% |
+| sim | 51.891 | 5,52% | 100,00% | 100,00% |
+| não | 888.248 | 94,48% | 4,25% | 0,00% |
 
 #### `idade`: Idade em anos na entrada (COD_IDADE em dias ou meses vira 0)
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 0 | 66.294 | 6,88% | 9,55% | 8,78% |
-| 1–4 | 38.820 | 4,03% | 10,41% | 5,71% |
-| 5–14 | 55.678 | 5,78% | 13,50% | 6,69% |
-| 15–49 | 456.303 | 47,35% | 9,39% | 5,86% |
-| 50–64 | 160.046 | 16,61% | 14,85% | 7,54% |
-| 65–79 | 132.344 | 13,73% | 15,52% | 9,50% |
-| 80+ | 54.281 | 5,63% | 15,56% | 12,41% |
+| 0 | 63.609 | 6,77% | 5,55% | 5,08% |
+| 1–4 | 38.227 | 4,07% | 9,06% | 4,93% |
+| 5–14 | 55.064 | 5,86% | 12,53% | 6,04% |
+| 15–49 | 448.447 | 47,70% | 7,80% | 4,56% |
+| 50–64 | 155.516 | 16,54% | 12,35% | 5,89% |
+| 65–79 | 127.498 | 13,56% | 12,28% | 7,14% |
+| 80+ | 51.777 | 5,51% | 11,44% | 9,17% |
 | idade inválida | 1 | 0,00% | 0,00% | 0,00% |
 
 #### `sexo`: Sexo (1 = M; 2 e 3 = F)
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| F | 571.707 | 59,32% | 11,07% | 6,78% |
-| M | 392.060 | 40,68% | 12,81% | 7,94% |
+| F | 558.659 | 59,42% | 8,97% | 5,05% |
+| M | 381.480 | 40,58% | 10,36% | 6,21% |
 
 #### `capitulo_cid`: Capítulo da CID-10 do diagnóstico principal da entrada
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| XV. Gravidez, parto e puerpério | 176.732 | 18,34% | 5,42% | 5,07% |
-| XIX. Lesões, envenenamentos e outras consequências de causas externas | 100.190 | 10,40% | 6,18% | 4,64% |
-| XI. Doenças do aparelho digestivo | 95.196 | 9,88% | 6,79% | 4,32% |
-| X. Doenças do aparelho respiratório | 84.620 | 8,78% | 11,53% | 9,79% |
-| II. Neoplasias (tumores) | 83.881 | 8,70% | 29,22% | 5,96% |
-| IX. Doenças do aparelho circulatório | 74.263 | 7,71% | 11,10% | 9,37% |
-| XIV. Doenças do aparelho geniturinário | 67.463 | 7,00% | 10,59% | 8,29% |
-| I. Algumas doenças infecciosas e parasitárias | 49.727 | 5,16% | 16,38% | 12,74% |
-| XII. Doenças da pele e do tecido subcutâneo | 41.747 | 4,33% | 14,23% | 5,56% |
-| XVI. Algumas afecções originadas no período perinatal | 40.292 | 4,18% | 8,70% | 7,10% |
-| XXI. Fatores que influenciam o estado de saúde e o contato com serviços de saúde | 34.405 | 3,57% | 7,47% | 5,19% |
-| XVIII. Sintomas, sinais e achados anormais de exames clínicos e laboratoriais | 21.280 | 2,21% | 15,92% | 9,51% |
-| VI. Doenças do sistema nervoso | 19.173 | 1,99% | 18,56% | 14,13% |
-| XIII. Doenças do sistema osteomuscular e do tecido conjuntivo | 16.659 | 1,73% | 17,70% | 7,47% |
-| IV. Doenças endócrinas, nutricionais e metabólicas | 16.377 | 1,70% | 32,45% | 18,29% |
-| V. Transtornos mentais e comportamentais | 12.053 | 1,25% | 13,13% | 11,01% |
-| VII. Doenças do olho e anexos | 10.541 | 1,09% | 6,25% | 1,25% |
-| III. Doenças do sangue, órgãos hematopoéticos e transtornos imunitários | 9.706 | 1,01% | 31,67% | 20,52% |
-| XVII. Malformações congênitas, deformidades e anomalias cromossômicas | 7.713 | 0,80% | 11,29% | 6,98% |
-| VIII. Doenças do ouvido e da apófise mastoide | 1.697 | 0,18% | 3,71% | 3,42% |
-| XXII. Códigos para propósitos especiais | 52 | 0,01% | 7,69% | 7,69% |
+| XV. Gravidez, parto e puerpério | 173.479 | 18,45% | 3,71% | 3,40% |
+| XIX. Lesões, envenenamentos e outras consequências de causas externas | 99.162 | 10,55% | 5,01% | 3,78% |
+| XI. Doenças do aparelho digestivo | 94.619 | 10,06% | 6,14% | 3,83% |
+| II. Neoplasias (tumores) | 82.669 | 8,79% | 28,14% | 5,45% |
+| X. Doenças do aparelho respiratório | 81.648 | 8,68% | 8,31% | 7,11% |
+| IX. Doenças do aparelho circulatório | 72.491 | 7,71% | 8,54% | 7,37% |
+| XIV. Doenças do aparelho geniturinário | 66.380 | 7,06% | 9,16% | 7,10% |
+| I. Algumas doenças infecciosas e parasitárias | 46.232 | 4,92% | 10,95% | 7,92% |
+| XII. Doenças da pele e do tecido subcutâneo | 38.956 | 4,14% | 7,79% | 4,15% |
+| XVI. Algumas afecções originadas no período perinatal | 38.578 | 4,10% | 4,26% | 2,71% |
+| XXI. Fatores que influenciam o estado de saúde e o contato com serviços de saúde | 34.156 | 3,63% | 6,64% | 4,47% |
+| XVIII. Sintomas, sinais e achados anormais de exames clínicos e laboratoriais | 20.857 | 2,22% | 14,35% | 8,28% |
+| VI. Doenças do sistema nervoso | 17.757 | 1,89% | 12,58% | 9,56% |
+| XIII. Doenças do sistema osteomuscular e do tecido conjuntivo | 16.412 | 1,75% | 16,81% | 6,89% |
+| IV. Doenças endócrinas, nutricionais e metabólicas | 15.897 | 1,69% | 30,56% | 16,55% |
+| V. Transtornos mentais e comportamentais | 11.610 | 1,23% | 9,91% | 7,86% |
+| VII. Doenças do olho e anexos | 10.427 | 1,11% | 5,19% | 1,13% |
+| III. Doenças do sangue, órgãos hematopoéticos e transtornos imunitários | 9.460 | 1,01% | 29,46% | 17,73% |
+| XVII. Malformações congênitas, deformidades e anomalias cromossômicas | 7.607 | 0,81% | 9,41% | 5,90% |
+| VIII. Doenças do ouvido e da apófise mastoide | 1.691 | 0,18% | 3,49% | 3,19% |
+| XXII. Códigos para propósitos especiais | 51 | 0,01% | 7,84% | 7,84% |
 
 #### `grupo_sigtap`: Grupo SIGTAP do procedimento principal da entrada
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 03 Procedimentos clínicos | 549.497 | 57,02% | 15,91% | 9,86% |
-| 04 Procedimentos cirúrgicos | 403.900 | 41,91% | 5,72% | 3,28% |
-| 05 Transplantes de órgãos, tecidos e células | 8.670 | 0,90% | 31,37% | 27,16% |
-| 02 Procedimentos com finalidade diagnóstica | 1.700 | 0,18% | 13,24% | 4,82% |
+| 03 Procedimentos clínicos | 533.155 | 56,71% | 13,20% | 7,47% |
+| 04 Procedimentos cirúrgicos | 397.364 | 42,27% | 4,28% | 2,58% |
+| 05 Transplantes de órgãos, tecidos e células | 7.986 | 0,85% | 25,91% | 22,15% |
+| 02 Procedimentos com finalidade diagnóstica | 1.634 | 0,17% | 11,08% | 4,04% |
 
 #### `car_int`: Caráter da internação na entrada
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 02 Urgência | 665.994 | 69,10% | 10,68% | 9,39% |
-| 01 Eletivo | 293.507 | 30,45% | 14,36% | 2,42% |
-| 05 Outros tipos de acidente de trânsito | 3.321 | 0,34% | 6,81% | 4,79% |
-| 06 Outros tipos de lesões e envenenamentos por agentes químicos ou físicos | 945 | 0,10% | 4,66% | 4,44% |
+| 02 Urgência | 648.622 | 68,99% | 8,22% | 7,02% |
+| 01 Eletivo | 287.265 | 30,56% | 12,55% | 2,14% |
+| 05 Outros tipos de acidente de trânsito | 3.309 | 0,35% | 6,47% | 4,47% |
+| 06 Outros tipos de lesões e envenenamentos por agentes químicos ou físicos | 943 | 0,10% | 4,14% | 4,03% |
 
 #### `dias_permanencia`: Dias de permanência do episódio (saída − entrada)
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 0 | 104.234 | 10,82% | 23,99% | 6,97% |
-| 1 | 172.690 | 17,92% | 6,32% | 3,89% |
-| 2–3 | 301.983 | 31,33% | 7,66% | 4,94% |
-| 4–7 | 199.253 | 20,67% | 10,62% | 7,51% |
-| 8–14 | 107.079 | 11,11% | 14,12% | 10,92% |
-| 15–30 | 57.637 | 5,98% | 21,69% | 17,33% |
-| 31+ | 20.891 | 2,17% | 27,18% | 20,77% |
+| 0 | 102.837 | 10,94% | 23,15% | 6,55% |
+| 1 | 169.103 | 17,99% | 5,59% | 3,28% |
+| 2–3 | 295.051 | 31,38% | 6,02% | 3,73% |
+| 4–7 | 194.097 | 20,65% | 8,49% | 6,12% |
+| 8–14 | 104.431 | 11,11% | 10,87% | 8,17% |
+| 15–30 | 53.733 | 5,72% | 14,41% | 10,78% |
+| 31+ | 20.887 | 2,22% | 14,72% | 11,46% |
 
 #### `dias_uti`: Diárias de UTI somadas no episódio (UTI_MES_TO)
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 0 | 913.027 | 94,74% | 10,97% | 6,46% |
-| 1–3 | 20.496 | 2,13% | 16,18% | 11,48% |
-| 4–7 | 12.305 | 1,28% | 22,45% | 17,51% |
-| 8+ | 17.939 | 1,86% | 40,64% | 35,43% |
+| 0 | 895.505 | 95,25% | 9,43% | 5,36% |
+| 1–3 | 19.369 | 2,06% | 11,10% | 7,28% |
+| 4–7 | 11.087 | 1,18% | 11,17% | 8,42% |
+| 8+ | 14.178 | 1,51% | 12,87% | 10,70% |
 
 #### `usou_uti`: Teve diária de UTI no episódio
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 50.740 | 5,26% | 26,35% | 21,41% |
-| não | 913.027 | 94,74% | 10,97% | 6,46% |
+| sim | 44.634 | 4,75% | 11,68% | 8,65% |
+| não | 895.505 | 95,25% | 9,43% | 5,36% |
 
 #### `n_aihs`: Internações (AIHs) no episódio
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 1 | 896.873 | 93,06% | 11,44% | 6,92% |
-| 2 | 53.916 | 5,59% | 14,61% | 10,54% |
-| 3 | 8.722 | 0,90% | 21,59% | 14,58% |
-| 4+ | 4.256 | 0,44% | 27,98% | 19,31% |
+| 1 | 861.669 | 91,65% | 9,27% | 5,25% |
+| 2 | 61.935 | 6,59% | 10,81% | 7,39% |
+| 3 | 10.995 | 1,17% | 16,58% | 11,10% |
+| 4+ | 5.540 | 0,59% | 22,76% | 15,16% |
 
 #### `n_hospitais`: Hospitais (CNES) distintos no episódio
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 1 | 944.901 | 98,04% | 11,68% | 7,12% |
-| 2 | 18.372 | 1,91% | 16,49% | 13,35% |
-| 3+ | 494 | 0,05% | 28,54% | 22,67% |
+| 1 | 921.663 | 98,03% | 9,50% | 5,45% |
+| 2 | 17.993 | 1,91% | 10,90% | 8,93% |
+| 3+ | 483 | 0,05% | 17,18% | 14,29% |
 
 #### `houve_transferencia`: Episódio juntou internações por transferência
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 19.002 | 1,97% | 17,33% | 14,02% |
-| não | 944.765 | 98,03% | 11,67% | 7,11% |
+| sim | 18.574 | 1,98% | 11,27% | 9,21% |
+| não | 921.565 | 98,02% | 9,50% | 5,45% |
 
 #### `houve_permanencia`: Episódio juntou internações por permanência
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 49.980 | 5,19% | 16,29% | 10,99% |
-| não | 913.787 | 94,81% | 11,53% | 7,04% |
+| sim | 49.169 | 5,23% | 12,91% | 8,49% |
+| não | 890.970 | 94,77% | 9,35% | 5,36% |
 
-#### `houve_contigua_sem_motivo`: Episódio juntou contíguas sem motivo (só com a D03 diferente de 'nenhuma')
+#### `houve_contigua_sem_motivo`: Episódio juntou contíguas sem motivo (D03: só no mesmo hospital)
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| não | 963.767 | 100,00% | 11,78% | 7,25% |
+| sim | 15.848 | 1,69% | 14,15% | 8,83% |
+| não | 924.291 | 98,31% | 9,46% | 5,46% |
 
 #### `cep_generico`: CEP terminado em 000 (D01, condição 2)
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 436.161 | 45,26% | 9,98% | 7,07% |
-| não | 527.606 | 54,74% | 13,26% | 7,40% |
+| sim | 427.410 | 45,46% | 8,10% | 5,62% |
+| não | 512.729 | 54,54% | 10,73% | 5,44% |
 
 #### `cnes_alta`: CNES do hospital da alta (última internação)
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 0000434 | 66.236 | 6,87% | 20,68% | 12,72% |
-| 0000655 | 38.160 | 3,96% | 7,80% | 7,16% |
-| 0000477 | 35.824 | 3,72% | 41,34% | 0,61% |
-| 0000426 | 33.572 | 3,48% | 8,13% | 7,43% |
-| 0000396 | 28.609 | 2,97% | 21,04% | 11,42% |
-| 2427427 | 27.059 | 2,81% | 13,98% | 8,88% |
-| 2802783 | 25.609 | 2,66% | 9,91% | 4,78% |
-| 2430711 | 24.378 | 2,53% | 6,05% | 5,91% |
-| 0000418 | 24.101 | 2,50% | 6,24% | 5,50% |
-| 0000582 | 21.040 | 2,18% | 21,17% | 2,61% |
-| outras 250 categorias | 639.179 | 66,32% | 9,31% | 7,16% |
+| 0000434 | 65.638 | 6,98% | 19,94% | 12,12% |
+| 0000655 | 37.991 | 4,04% | 7,35% | 6,73% |
+| 0000477 | 34.984 | 3,72% | 39,92% | 0,61% |
+| 0000426 | 33.108 | 3,52% | 6,82% | 6,14% |
+| 0000396 | 28.185 | 3,00% | 19,83% | 10,28% |
+| 2427427 | 25.546 | 2,72% | 8,82% | 3,77% |
+| 2802783 | 25.523 | 2,71% | 9,54% | 4,44% |
+| 2430711 | 24.193 | 2,57% | 5,32% | 5,18% |
+| 0000418 | 24.038 | 2,56% | 5,96% | 5,23% |
+| 0000582 | 20.814 | 2,21% | 20,32% | 2,47% |
+| outras 250 categorias | 620.119 | 65,96% | 6,50% | 5,02% |
 
 #### `ano_alta`: Ano da alta
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 2023 | 533.083 | 55,31% | 11,63% | 7,50% |
-| 2024 | 430.684 | 44,69% | 11,96% | 6,94% |
+| 2023 | 519.393 | 55,25% | 9,28% | 5,64% |
+| 2024 | 420.746 | 44,75% | 9,85% | 5,37% |
 
 #### `historico_completo`: Janela de 365 dias antes da entrada inteira dentro dos dados
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 424.949 | 44,09% | 11,90% | 6,87% |
-| não | 538.818 | 55,91% | 11,68% | 7,55% |
+| sim | 415.036 | 44,15% | 9,83% | 5,32% |
+| não | 525.103 | 55,85% | 9,30% | 5,68% |
 
 #### `episodios_365d`: Episódios anteriores da chave com saída nos 365 dias antes da entrada
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 0 | 765.646 | 79,44% | 7,51% | 5,50% |
-| 1 | 115.678 | 12,00% | 16,60% | 10,80% |
-| 2 | 33.288 | 3,45% | 28,70% | 16,61% |
-| 3–4 | 22.201 | 2,30% | 41,29% | 19,76% |
-| 5+ | 26.954 | 2,80% | 67,20% | 19,90% |
+| 0 | 763.503 | 81,21% | 5,76% | 4,10% |
+| 1 | 104.557 | 11,12% | 14,09% | 8,78% |
+| 2 | 28.935 | 3,08% | 25,25% | 13,56% |
+| 3–4 | 18.805 | 2,00% | 38,72% | 16,42% |
+| 5+ | 24.339 | 2,59% | 67,20% | 17,98% |
 
 #### `dias_internado_365d`: Dias internado nesses episódios, dentro da janela
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 0 | 795.495 | 82,54% | 8,85% | 5,76% |
-| 1–3 | 54.465 | 5,65% | 14,96% | 7,28% |
-| 4–7 | 35.313 | 3,66% | 21,00% | 11,55% |
-| 8–14 | 29.659 | 3,08% | 26,62% | 15,29% |
-| 15–30 | 25.421 | 2,64% | 33,63% | 19,35% |
-| 31+ | 23.414 | 2,43% | 47,31% | 28,02% |
+| 0 | 792.576 | 84,30% | 7,13% | 4,40% |
+| 1–3 | 49.732 | 5,29% | 14,14% | 6,44% |
+| 4–7 | 31.776 | 3,38% | 18,41% | 9,93% |
+| 8–14 | 26.035 | 2,77% | 22,92% | 12,68% |
+| 15–30 | 21.786 | 2,32% | 30,02% | 15,61% |
+| 31+ | 18.234 | 1,94% | 42,38% | 21,70% |
 
 #### `dias_desde_ultima_alta`: Dias entre a última alta anterior da chave e a entrada
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| 0–1 | 25.349 | 2,63% | 30,44% | 21,36% |
-| 2–7 | 25.914 | 2,69% | 42,75% | 19,70% |
-| 8–30 | 52.120 | 5,41% | 41,73% | 15,57% |
-| 31–90 | 44.588 | 4,63% | 20,19% | 10,96% |
-| 91–180 | 26.547 | 2,75% | 14,38% | 9,14% |
-| 181–365 | 23.603 | 2,45% | 11,34% | 7,72% |
-| 366+ | 9.417 | 0,98% | 9,45% | 6,71% |
-| sem episódio anterior | 756.229 | 78,47% | 7,48% | 5,48% |
+| 0–1 | 4.676 | 0,50% | 11,42% | 9,37% |
+| 2–7 | 25.752 | 2,74% | 41,01% | 18,25% |
+| 8–30 | 51.849 | 5,52% | 39,99% | 14,35% |
+| 31–90 | 44.389 | 4,72% | 18,39% | 9,66% |
+| 91–180 | 26.452 | 2,81% | 12,69% | 7,98% |
+| 181–365 | 23.518 | 2,50% | 9,86% | 6,75% |
+| 366+ | 9.383 | 1,00% | 7,82% | 5,58% |
+| sem episódio anterior | 754.120 | 80,21% | 5,73% | 4,08% |
 
 #### `historico_com_obito`: Algum episódio anterior da chave terminou em óbito (colisão)
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 1.680 | 0,17% | 4,11% | 3,33% |
-| não | 962.087 | 99,83% | 11,79% | 7,26% |
+| sim | 1.645 | 0,17% | 2,61% | 2,13% |
+| não | 938.494 | 99,83% | 9,55% | 5,53% |
 
 #### `chave_colidente`: A chave tem episódios sobrepostos no tempo (D01)
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 17.239 | 1,79% | 21,72% | 16,70% |
-| não | 946.528 | 98,21% | 11,60% | 7,08% |
+| sim | 16.336 | 1,74% | 15,89% | 11,92% |
+| não | 923.803 | 98,26% | 9,42% | 5,41% |
 
 #### `episodio_sobreposto`: Este episódio se sobrepõe a outro da mesma chave
 
 | Faixa ou categoria | Episódios | % dos episódios | Readmissão 30 dias | Não planejada 30 dias (D04) |
 | --- | ---: | ---: | ---: | ---: |
-| sim | 12.801 | 1,33% | 13,73% | 10,92% |
-| não | 950.966 | 98,67% | 11,75% | 7,20% |
+| sim | 12.593 | 1,34% | 8,93% | 7,05% |
+| não | 927.546 | 98,66% | 9,54% | 5,50% |
 <!-- atributos:fim -->

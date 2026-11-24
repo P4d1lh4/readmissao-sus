@@ -25,6 +25,9 @@ reports/*
 # Resultados da S10 (alvo readmissao_30d), guardados para comparar com a S13
 !reports/metrics_s10.json
 !reports/importancia_atributos_s10.csv
+# Resultados da S13 antes da D03 (contíguas sem motivo como readmissão)
+!reports/metrics_s13.json
+!reports/importancia_atributos_s13.csv
 artifacts/
 build/
 dist/

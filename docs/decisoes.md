@@ -240,7 +240,7 @@ Nenhum erro (severidade `error`) precisou entrar na lista.
 
 ## D03 — Contíguas sem motivo de transferência ou permanência (S07)
 
-**Estado: aguardando decisão do usuário.** Enquanto isso, o banco usa o padrão conservador (`contiguas_sem_motivo = 'nenhuma'`).
+**Estado: decidido pelo usuário em 24/11/2026: `mesmo_hospital`.** É o padrão do banco desde então (`REGRA_PADRAO` em `src/readmissao_sus/episodios.py`). As seções abaixo mostram as medidas e a proposta como estavam antes da decisão.
 
 ### Pergunta
 
@@ -289,7 +289,7 @@ Ressalvas:
 - com a proposta, a taxa fica em 9,53%, abaixo da faixa de 11–14% da literatura citada na D01. As referências não dizem como trataram AIHs administrativas, então a comparação é só indicativa;
 - uma regra intermediária seria juntar só o encerramento administrativo (51) no mesmo hospital. Ela não está implementada; se for a escolhida, é uma opção nova em `RegraEpisodio`.
 
-### Por que o padrão é `nenhuma`
+### Por que o padrão era `nenhuma` antes da decisão
 
 Até a decisão, o banco junta só o que o motivo de saída (`COBRANCA`) justifica pelo dicionário. A alta seguida de nova AIH continua como readmissão. O erro é conhecido e medido (a taxa fica cerca de 2,2 pontos acima da proposta), e nenhum evento some do rótulo sem decisão.
 
@@ -303,7 +303,21 @@ Só muda o parâmetro. Para testar sem mudar o padrão:
 
 Para adotar de vez, troque `REGRA_PADRAO` em `src/readmissao_sus/episodios.py` para `RegraEpisodio(contiguas_sem_motivo="mesmo_hospital")` (ou `"todas"`) e recrie o banco. A comparação das quatro regras é regerada a cada construção. Os testes das três opções ficam em `tests/test_episodios.py`.
 
-**Decisão do usuário:** _pendente._
+**Decisão do usuário (24/11/2026):** `mesmo_hospital`, a proposta acima.
+
+Efeito na construção de 24/11/2026 (bloco `episodios` de `docs/coorte.md`) e no modelo:
+
+| Item | Antes (`nenhuma`) | Com a D03 (`mesmo_hospital`) |
+| --- | ---: | ---: |
+| Episódios | 1.162.040 | 1.135.651 |
+| Altas-índice | 963.767 | 940.139 |
+| Readmissão em 30 dias (`readmissao_30d`) | 11,78% | 9,53% |
+| Readmissão não planejada (`readmissao_nao_planejada_30d`, D04) | 7,25% | 5,52% |
+| Readmitidas com início em 0–1 dia | 27.898 | 4.226 |
+| ROC-AUC do modelo no teste 2024 | 0,811 | 0,791 |
+| Voltas em 0–1 dia entre os positivos do teste | 28,6% | 6,7% |
+
+As voltas em 0–1 dia que sobram são, em sua maioria, em outro hospital. Os resultados antes da D03 ficam em `reports/metrics_s13.json`.
 
 ## D04 — Readmissões programadas fora do alvo (S13)
 
@@ -382,5 +396,7 @@ A comparação é só indicativa: as referências não descrevem como trataram A
 ```
 
 A lista fica em `SEMPRE_PROGRAMADOS` e a regra em `RegraProgramada`, em `src/readmissao_sus/programadas.py`. Os testes estão em `tests/test_programadas.py`.
+
+Com a D03 decidida (`mesmo_hospital`, 24/11/2026), os números da D04 passam a ser: 940.139 altas-índice, 89.641 readmitidas (9,53%), 37.750 reclassificadas e **51.891 readmitidas não planejadas (5,52%)**. A variante sem o caráter eletivo fica em 75.918 (8,08%). A tabela acima é da construção de 23/11/2026, antes da D03.
 
 **Decisão do usuário (23/11/2026):** manter a volta eletiva como programada. Ficam valendo a regra padrão e a taxa de 7,25%. A variante só com a lista do SIGTAP (10,33%) fica registrada aqui como comparação.

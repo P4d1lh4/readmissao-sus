@@ -10,7 +10,7 @@ Banco DuckDB local (`data/sih.duckdb`, fora do git) montado a partir dos Parquet
 
 O comando apaga e recria o banco do zero a partir de `data/parquet/RDPE*.parquet` (cerca de 5 min; a maior parte é montar os episódios com as quatro regras comparadas). Ele monta tudo num arquivo temporário (`data/sih.duckdb.novo`) e só troca o banco antigo no fim. Depois reescreve os dois blocos de contagens abaixo, entre as marcas `coorte` e `episodios`. O resto deste arquivo não é tocado.
 
-A regra das contíguas sem motivo (D03) é um parâmetro: `--contiguas-sem-motivo nenhuma|mesmo_hospital|todas` (padrão `nenhuma`, definido em `REGRA_PADRAO` de `src/readmissao_sus/episodios.py`). `--sem-permanencia` deixa de juntar a saída por permanência.
+A regra das contíguas sem motivo (D03) é um parâmetro: `--contiguas-sem-motivo nenhuma|mesmo_hospital|todas` (padrão `mesmo_hospital`, decidido na D03 em 24/11/2026 e definido em `REGRA_PADRAO` de `src/readmissao_sus/episodios.py`). `--sem-permanencia` deixa de juntar a saída por permanência.
 
 ## Tabelas
 
@@ -81,7 +81,7 @@ A S03 (`scripts/medir_linkage.py`) usa sal vazio, porque a chave dela só existe
 ## Contagens
 
 <!-- coorte:inicio (gerado por scripts/construir_banco.py; não editar à mão) -->
-Gerado por `.venv\Scripts\python scripts\construir_banco.py` em 23/11/2026. Só agregados.
+Gerado por `.venv\Scripts\python scripts\construir_banco.py` em 24/11/2026. Só agregados.
 
 #### Filtros, em ordem
 
@@ -154,7 +154,7 @@ A internação B continua a internação A quando:
 4. o motivo de saída de A (`COBRANCA`, pelo dicionário `SAIDAPERM.CNV`) permite:
    - **transferência** (29, 31, 32): sempre junta;
    - **permanência** (21–28: a AIH fecha, mas o paciente continua internado): junta por padrão (`juntar_permanencia = True`; ampliação baseada na D01, tratamento 6);
-   - **outras saídas sem óbito** (alta 1x, encerramento administrativo 51, alta no parto 6x): dependem da D03 (`contiguas_sem_motivo`). O padrão conservador é `nenhuma`: só junta o que o motivo de saída justifica, e a alta seguida de nova AIH continua contando como readmissão. `mesmo_hospital` (proposta da D03) junta quando a nova AIH é no mesmo CNES; `todas` junta qualquer contígua.
+   - **outras saídas sem óbito** (alta 1x, encerramento administrativo 51, alta no parto 6x): dependem da D03 (`contiguas_sem_motivo`). Desde a D03 (24/11/2026), o padrão é `mesmo_hospital`: junta quando a nova AIH é no mesmo hospital (CNES); em outro hospital, a nova AIH continua contando como readmissão. Com `nenhuma`, a alta seguida de nova AIH conta sempre como readmissão.
 
 Quando há mais de uma candidata, cada A fica com a primeira B (pela ordem acima) e cada B fica com a A de saída mais tardia. Assim cada internação tem no máximo uma anterior e uma seguinte, e as ligações formam **cadeias**: A → B → C vira um único episódio (posição 1, 2, 3 em `episodio_membro`). As candidatas que perdem a disputa ficam como episódios próprios e são contadas no bloco ("ficaram sem par").
 
@@ -177,7 +177,7 @@ As marcas da `coorte_episodio` são as da S06, calculadas sobre a **saída final
 
 ### Leitura dos números
 
-- A regra padrão (transferência + permanência) junta 118.356 internações e deixa 1.162.040 episódios a partir de 1.280.396 internações. Das 70.159 saídas por transferência sem óbito, 26.792 foram juntadas; quase todas as outras não têm nova AIH da mesma chave em 0–1 dia.
+- Antes da D03 (23/11/2026), a regra padrão (transferência + permanência, `nenhuma`) juntava 118.356 internações e deixa 1.162.040 episódios a partir de 1.280.396 internações. Das 70.159 saídas por transferência sem óbito, 26.792 foram juntadas; quase todas as outras não têm nova AIH da mesma chave em 0–1 dia.
 - A taxa de readmissão em 30 dias por episódio fica em **11,78%**, contra os 11,82% da D01 (que tirava a alta-índice contígua do numerador e do denominador, por internação). A diferença é pequena, e a direção era esperada: o episódio é a unidade, as cadeias com óbito no fim saem da coorte e a censura usa a saída final. Os números da D01 não mudam.
 - As contíguas sem motivo no período das altas-índice são exatamente as 27.916 da D01. Com a proposta da D03 (mesmo hospital), a taxa cai para 9,53%; juntando todas, 9,13%. A escolha está na D03 de `docs/decisoes.md`.
 - O maior episódio tem 40 internações, todas no mesmo hospital e ligadas por permanência (448 dias): AIHs sucessivas de uma internação longa. 182 episódios têm 10 ou mais internações.
@@ -185,84 +185,84 @@ As marcas da `coorte_episodio` são as da S06, calculadas sobre a **saída final
 ### Contagens dos episódios
 
 <!-- episodios:inicio (gerado por scripts/construir_banco.py; não editar à mão) -->
-Gerado por `.venv\Scripts\python scripts\construir_banco.py` em 23/11/2026. Só agregados.
+Gerado por `.venv\Scripts\python scripts\construir_banco.py` em 24/11/2026. Só agregados.
 
-Regra usada nas tabelas do banco: **transferência + permanência** (`juntar_permanencia = True`, `contiguas_sem_motivo = 'nenhuma'`). Contígua = nova AIH da mesma chave em 0–1 dia após a saída.
+Regra usada nas tabelas do banco: **transferência + permanência + contíguas sem motivo no mesmo hospital** (`juntar_permanencia = True`, `contiguas_sem_motivo = 'mesmo_hospital'`). Contígua = nova AIH da mesma chave em 0–1 dia após a saída.
 
 #### Internações x episódios
 
 | Item | Valor |
 | --- | ---: |
 | Internações (tabela internacao) | 1.280.396 |
-| Episódios (tabela episodio) | 1.162.040 |
-| Episódios com 2 ou mais internações | 87.445 |
-| Internações juntadas a uma anterior (internações − episódios) | 118.356 |
-| … depois de transferência | 26.792 |
-| … depois de permanência | 91.564 |
-| … contíguas sem motivo (regra D03) | 0 |
-| Episódios com mais de um hospital | 25.456 |
+| Episódios (tabela episodio) | 1.135.651 |
+| Episódios com 2 ou mais internações | 103.574 |
+| Internações juntadas a uma anterior (internações − episódios) | 144.745 |
+| … depois de transferência | 26.784 |
+| … depois de permanência | 91.551 |
+| … contíguas sem motivo (regra D03) | 26.410 |
+| Episódios com mais de um hospital | 25.406 |
 | Maior episódio (internações) | 40 |
-| Candidatas aceitas pela regra que ficaram sem par (disputa entre AIHs) | 144 |
+| Candidatas aceitas pela regra que ficaram sem par (disputa entre AIHs) | 259 |
 | Contíguas sem motivo com saída anterior no período das altas-índice (D01: 27.916) | 27.916 |
 
 #### Saídas sem óbito por motivo
 
 | Motivo da saída | Saídas | Seguidas de nova AIH em 0–1 dia | Juntadas | % juntadas |
 | --- | ---: | ---: | ---: | ---: |
-| Transferência (29, 31, 32) | 70.159 | 26.827 | 26.792 | 38,19% |
-| Permanência (21–28) | 103.566 | 91.673 | 91.564 | 88,41% |
-| Outras saídas sem óbito (alta, 51, 6x) | 1.051.627 | 31.186 | 0 | 0,00% |
+| Transferência (29, 31, 32) | 70.159 | 26.827 | 26.784 | 38,18% |
+| Permanência (21–28) | 103.566 | 91.673 | 91.551 | 88,40% |
+| Outras saídas sem óbito (alta, 51, 6x) | 1.051.627 | 31.186 | 26.410 | 2,51% |
 
 #### Internações por episódio
 
 | Item | Valor |
 | --- | ---: |
-| 1 internação | 1.074.595 |
-| 2 internações | 69.252 |
-| 3 internações | 11.875 |
-| 4 ou mais internações | 6.318 |
+| 1 internação | 1.032.077 |
+| 2 internações | 79.916 |
+| 3 internações | 15.202 |
+| 4 ou mais internações | 8.456 |
 
 #### Desfecho, censura e marcas (coorte_episodio)
 
 | Item | Valor |
 | --- | ---: |
 | Episódios com óbito na última internação (fora da coorte) | 55.044 |
-| … com 2 ou mais internações | 9.587 |
-| Altas sem óbito da S06 dentro de episódio terminado em óbito | 15.273 |
-| Episódios na coorte (tabela coorte_episodio) | 1.106.996 |
-| Elegíveis a alta-índice (elegivel_indice) | 963.767 |
-| Censurados: saída final depois da data de corte (censurada) | 131.752 |
-| … com internação elegível na S06 (a cadeia passou do corte) | 1.308 |
-| Saída final antes do início do período (alta_antes_do_inicio) | 11.477 |
-| Elegíveis que terminam em transferência ou permanência sem continuação (fim_sem_continuacao) | 46.568 |
-| CEP genérico entre as elegíveis | 436.161 |
+| … com 2 ou mais internações | 12.292 |
+| Altas sem óbito da S06 dentro de episódio terminado em óbito | 20.759 |
+| Episódios na coorte (tabela coorte_episodio) | 1.080.607 |
+| Elegíveis a alta-índice (elegivel_indice) | 940.139 |
+| Censurados: saída final depois da data de corte (censurada) | 129.321 |
+| … com internação elegível na S06 (a cadeia passou do corte) | 1.688 |
+| Saída final antes do início do período (alta_antes_do_inicio) | 11.147 |
+| Elegíveis que terminam em transferência ou permanência sem continuação (fim_sem_continuacao) | 46.586 |
+| CEP genérico entre as elegíveis | 427.410 |
 
 #### Readmissão em 30 dias por episódio
 
 | Item | Valor |
 | --- | ---: |
-| Altas-índice (episódios elegíveis) | 963.767 |
-| Readmitidas em 30 dias | 113.511 |
-| Taxa de readmissão em 30 dias | 11,78% |
-| … início em 0–1 dia | 27.898 |
-| … em 2–7 dias | 28.196 |
-| … em 8–30 dias | 57.417 |
-| Readmitidas em 30 dias sem as voltas programadas (D04) | 69.868 |
-| Taxa de readmissão não planejada em 30 dias (alvo da D04) | 7,25% |
-| Readmitidas com a primeira volta programada | 45.610 |
-| … programada por caráter eletivo | 43.756 |
-| … por procedimento sempre programado | 15.019 |
+| Altas-índice (episódios elegíveis) | 940.139 |
+| Readmitidas em 30 dias | 89.641 |
+| Taxa de readmissão em 30 dias | 9,53% |
+| … início em 0–1 dia | 4.226 |
+| … em 2–7 dias | 28.107 |
+| … em 8–30 dias | 57.308 |
+| Readmitidas em 30 dias sem as voltas programadas (D04) | 51.891 |
+| Taxa de readmissão não planejada em 30 dias (alvo da D04) | 5,52% |
+| Readmitidas com a primeira volta programada | 39.182 |
+| … programada por caráter eletivo | 37.469 |
+| … por procedimento sempre programado | 14.550 |
 | … por diagnóstico sempre programado | 4 |
-| … e com volta não planejada depois, ainda em 30 dias (continuam no alvo) | 1.967 |
-| Reclassificadas: readmitidas que saem do alvo (só voltas programadas) | 43.643 |
+| … e com volta não planejada depois, ainda em 30 dias (continuam no alvo) | 1.432 |
+| Reclassificadas: readmitidas que saem do alvo (só voltas programadas) | 37.750 |
 
 #### Comparação das regras
 
 | Regra | Internações | Episódios | Altas-índice | Readmitidas | Taxa 30 dias | Não planejadas (D04) | Taxa não planejada |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | transferência | 1.280.396 | 1.253.599 | 1.042.983 | 193.105 | 18,51% | 134.480 | 12,89% |
-| transferência + permanência (padrão) | 1.280.396 | 1.162.040 | 963.767 | 113.511 | 11,78% | 69.868 | 7,25% |
-| transferência + permanência + contíguas sem motivo no mesmo hospital (proposta D03) | 1.280.396 | 1.135.651 | 940.139 | 89.641 | 9,53% | 51.891 | 5,52% |
+| transferência + permanência (antes da D03) | 1.280.396 | 1.162.040 | 963.767 | 113.511 | 11,78% | 69.868 | 7,25% |
+| transferência + permanência + contíguas sem motivo no mesmo hospital (padrão, D03) | 1.280.396 | 1.135.651 | 940.139 | 89.641 | 9,53% | 51.891 | 5,52% |
 | transferência + permanência + todas as contíguas sem motivo | 1.280.396 | 1.131.007 | 935.991 | 85.460 | 9,13% | 48.392 | 5,17% |
 
 Referência (D01, por internação, sem juntar): 20,32% bruta; 11,82% tirando as altas-índice seguidas de contígua após transferência ou permanência.

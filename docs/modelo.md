@@ -44,7 +44,7 @@ Decisões da história:
 - **`cnes_alta` entra.** O hospital da alta é conhecido na alta, e a taxa de readmissão varia muito entre hospitais (de 6% a 41% entre os dez maiores; `docs/atributos.md`). São 258 hospitais no treino. Com o limite de 0,1% do treino (cerca de 530 episódios), 107 ficam com coluna própria e cobrem 95% dos episódios de 2023; os demais, e os 318 episódios de 2024 em hospitais sem alta em 2023, caem no grupo "infrequente". A ablação sem o hospital mede quanto do resultado depende dele.
 - **`cep_generico` entra**, como a condição 2 da D01 pede, e o teste é avaliado em separado por ela.
 - **`historico_com_obito` entra.** Só olha episódios anteriores à entrada; é um sinal de colisão de chave que já se conhece na alta.
-- **`houve_contigua_sem_motivo`** é constante (falso) com a regra padrão da D03 (`nenhuma`). Fica na lista para o modelo continuar o mesmo se a D03 mudar.
+- **`houve_contigua_sem_motivo`** marca o episódio que juntou contíguas sem motivo no mesmo hospital (regra da D03, `mesmo_hospital`). Com a regra `nenhuma`, era constante (falso).
 
 ## Mudança de distribuição entre 2023 e 2024
 
@@ -60,7 +60,7 @@ ROC-AUC acima de 0,80 é tratado como suspeita de vazamento e investigado (`inve
 
 - **AUC de cada atributo sozinho** no teste: um atributo que sozinho separa quase tudo é o primeiro suspeito;
 - **ablações:** o vencedor reajustado sem o histórico da chave e sem o hospital;
-- **readmissões em 0–1 dia:** o teste sem os positivos cuja readmissão começou no dia da alta ou no seguinte. São as AIHs contíguas que a D03 (pendente) pode juntar ao episódio, em boa parte administrativas e fáceis de prever pelo hospital e pelo histórico de AIHs sucessivas.
+- **readmissões em 0–1 dia:** o teste sem os positivos cuja readmissão começou no dia da alta ou no seguinte. Com a D03 (`mesmo_hospital`), as do mesmo hospital já estão juntadas ao episódio; as que sobram são, em sua maioria, em outro hospital.
 
 Na S13, o teste por caráter da internação-índice (`car_int` em `teste_por_grupo`) mostra se a diferença entre eletivo e urgência da S10 vinha das voltas programadas. O resultado da investigação está no README.
 
